@@ -117,7 +117,12 @@ public class RenderPass {
         }
     }
 
-    public void beginRenderPass(VkCommandBuffer commandBuffer, long framebufferId, MemoryStack stack) {
+    public void beginRenderPass(VkCommandBuffer commandBuffer, long framebufferId, MemoryStack stack, long colorImageView, long depthImageView) {
+
+
+        VkRenderPassAttachmentBeginInfoKHR vkRenderPassAttachmentBeginInfo = VkRenderPassAttachmentBeginInfoKHR.calloc(stack)
+                .sType$Default()
+                .pAttachments(stack.longs(colorImageView, depthImageView));
 
 //        if(colorAttachmentInfo != null && colorAttachmentInfo.initialLayout != VK_IMAGE_LAYOUT_UNDEFINED
 //                && colorAttachmentInfo.initialLayout != framebuffer.getColorAttachment().getCurrentLayout())
@@ -130,6 +135,7 @@ public class RenderPass {
 
         VkRenderPassBeginInfo renderPassInfo = VkRenderPassBeginInfo.callocStack(stack);
         renderPassInfo.sType$Default();
+        renderPassInfo.pNext(vkRenderPassAttachmentBeginInfo);
         renderPassInfo.renderPass(this.id);
         renderPassInfo.framebuffer(framebufferId);
 

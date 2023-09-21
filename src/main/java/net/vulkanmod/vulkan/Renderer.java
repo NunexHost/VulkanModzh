@@ -31,8 +31,6 @@ import static net.vulkanmod.vulkan.Vulkan.*;
 import static org.lwjgl.system.MemoryStack.stackGet;
 import static org.lwjgl.system.MemoryStack.stackPush;
 import static org.lwjgl.vulkan.EXTDebugUtils.*;
-import static org.lwjgl.vulkan.EXTFullScreenExclusive.VK_ERROR_FULL_SCREEN_EXCLUSIVE_MODE_LOST_EXT;
-import static org.lwjgl.vulkan.KHRSurface.VK_ERROR_SURFACE_LOST_KHR;
 import static org.lwjgl.vulkan.KHRSwapchain.*;
 import static org.lwjgl.vulkan.VK10.*;
 
@@ -298,13 +296,13 @@ public class Renderer {
 
             submitInfo.waitSemaphoreCount(1);
             submitInfo.pWaitSemaphores(stackGet().longs(imageAvailableSemaphores.get(currentFrame)));
-            submitInfo.pWaitDstStageMask(stack.ints(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT));
+            submitInfo.pWaitDstStageMask(stack.ints(VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT));
 
             submitInfo.pSignalSemaphores(stackGet().longs(renderFinishedSemaphores.get(currentFrame)));
 
             submitInfo.pCommandBuffers(stack.pointers(currentCmdBuffer));
 
-            vkResetFences(device, stackGet().longs(inFlightFences.get(currentFrame)));
+            vkResetFences(device, (inFlightFences.get(currentFrame)));
 
             Synchronization.INSTANCE.waitFences();
 
@@ -356,21 +354,21 @@ public class Renderer {
         return pImageIndex.get(0);
     }
 
-    private String decVkErr(int vkResult) {
-       return switch (vkResult)
-        {
-            case VK_TIMEOUT -> "VK_TIMEOUT";
-            case VK_SUBOPTIMAL_KHR -> "VK_SUBOPTIMAL_KHR";
-            case VK_NOT_READY -> "VK_NOT_READY";
-            case VK_ERROR_OUT_OF_HOST_MEMORY -> "VK_ERROR_OUT_OF_HOST_MEMORY";
-            case VK_ERROR_OUT_OF_DEVICE_MEMORY -> "VK_ERROR_OUT_OF_DEVICE_MEMORY";
-            case VK_ERROR_DEVICE_LOST -> "VK_ERROR_DEVICE_LOST";
-            case VK_ERROR_OUT_OF_DATE_KHR -> "VK_ERROR_OUT_OF_DATE_KHR";
-            case VK_ERROR_SURFACE_LOST_KHR -> "VK_ERROR_SURFACE_LOST_KHR";
-            case VK_ERROR_FULL_SCREEN_EXCLUSIVE_MODE_LOST_EXT -> "VK_ERROR_FULL_SCREEN_EXCLUSIVE_MODE_LOST_EXT";
-            default -> "VK_SUCCESS";
-        };
-    }
+//    private String decVkErr(int vkResult) {
+//       return switch (vkResult)
+//        {
+//            case VK_TIMEOUT -> "VK_TIMEOUT";
+//            case VK_SUBOPTIMAL_KHR -> "VK_SUBOPTIMAL_KHR";
+//            case VK_NOT_READY -> "VK_NOT_READY";
+//            case VK_ERROR_OUT_OF_HOST_MEMORY -> "VK_ERROR_OUT_OF_HOST_MEMORY";
+//            case VK_ERROR_OUT_OF_DEVICE_MEMORY -> "VK_ERROR_OUT_OF_DEVICE_MEMORY";
+//            case VK_ERROR_DEVICE_LOST -> "VK_ERROR_DEVICE_LOST";
+//            case VK_ERROR_OUT_OF_DATE_KHR -> "VK_ERROR_OUT_OF_DATE_KHR";
+//            case VK_ERROR_SURFACE_LOST_KHR -> "VK_ERROR_SURFACE_LOST_KHR";
+//            case VK_ERROR_FULL_SCREEN_EXCLUSIVE_MODE_LOST_EXT -> "VK_ERROR_FULL_SCREEN_EXCLUSIVE_MODE_LOST_EXT";
+//            default -> "VK_SUCCESS";
+//        };
+//    }
 
     void waitForSwapChain()
     {
