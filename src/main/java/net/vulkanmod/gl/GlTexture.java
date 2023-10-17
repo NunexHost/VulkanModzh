@@ -26,9 +26,6 @@ public class GlTexture {
     }
 
     public static void bindTexture(int i) {
-        if(i == -1)
-            return;
-
         boundTextureId = i;
         boundTexture = map.get(i);
 
