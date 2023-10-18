@@ -6,7 +6,6 @@ import net.vulkanmod.vulkan.Device;
 import net.vulkanmod.vulkan.Renderer;
 import net.vulkanmod.vulkan.Synchronization;
 import net.vulkanmod.vulkan.Vulkan;
-import net.vulkanmod.config.VideoResolution;
 import net.vulkanmod.vulkan.queue.Queue;
 import net.vulkanmod.vulkan.texture.VulkanImage;
 import org.lwjgl.system.MemoryStack;
@@ -24,6 +23,8 @@ import static net.vulkanmod.vulkan.util.VUtil.UINT32_MAX;
 import static org.lwjgl.glfw.GLFW.glfwGetFramebufferSize;
 import static org.lwjgl.system.MemoryStack.stackGet;
 import static org.lwjgl.system.MemoryStack.stackPush;
+import static org.lwjgl.vulkan.KHRSharedPresentableImage.VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR;
+import static org.lwjgl.vulkan.KHRSharedPresentableImage.VK_PRESENT_MODE_SHARED_DEMAND_REFRESH_KHR;
 import static org.lwjgl.vulkan.KHRSurface.*;
 import static org.lwjgl.vulkan.KHRSwapchain.*;
 import static org.lwjgl.vulkan.VK10.*;
@@ -38,7 +39,7 @@ public class SwapChain extends Framebuffer {
     private RenderPass renderPass;
 
     //Necessary until tearing-control-unstable-v1 is fully implemented on all GPU Drivers for Wayland
-    private static final int defUncappedMode = VideoResolution.isWayLand() ? checkPresentMode(VK_PRESENT_MODE_MAILBOX_KHR, VK_PRESENT_MODE_IMMEDIATE_KHR) : VK_PRESENT_MODE_IMMEDIATE_KHR;
+    private static final int defUncappedMode = checkPresentMode(VK_PRESENT_MODE_IMMEDIATE_KHR, VK_PRESENT_MODE_MAILBOX_KHR);
     private long[] framebuffers;
     private long swapChain = VK_NULL_HANDLE;
     private List<VulkanImage> swapChainImages;
@@ -194,7 +195,18 @@ public class SwapChain extends Framebuffer {
 
         }
     }
-
+    private String getDisplayModeString(int requestedMode) {
+        return switch(requestedMode)
+        {
+            case VK_PRESENT_MODE_IMMEDIATE_KHR -> "IMMEDIATE (No VSync) -> Uncapped FPS + Tearing";
+            case VK_PRESENT_MODE_MAILBOX_KHR -> "MAILBOX (Fast Sync) -> Uncapped FPS + No Tearing";
+            case VK_PRESENT_MODE_FIFO_KHR -> "FIFO (VSync) -> Capped FPS + No Tearing";
+            case VK_PRESENT_MODE_FIFO_RELAXED_KHR -> "RELAXED FIFO (Adaptive VSync) -> Capped FPS + Tearing";
+            case VK_PRESENT_MODE_SHARED_DEMAND_REFRESH_KHR -> "shared demand refresh";
+            case VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR ->  "CONTINUOUS REFRESH";
+            default -> throw new IllegalStateException("Unexpected value: " + requestedMode);
+        };
+    }
     private void createRenderPass() {
         this.hasColorAttachment = true;
         this.hasDepthAttachment = true;
@@ -370,17 +382,14 @@ public class SwapChain extends Framebuffer {
     private int getPresentMode(IntBuffer availablePresentModes) {
         int requestedMode = vsync ? VK_PRESENT_MODE_FIFO_KHR : defUncappedMode;
 
-        //fifo mode is the only mode that has to be supported
-        if(requestedMode == VK_PRESENT_MODE_FIFO_KHR)
-            return VK_PRESENT_MODE_FIFO_KHR;
-
         for(int i = 0;i < availablePresentModes.capacity();i++) {
             if(availablePresentModes.get(i) == requestedMode) {
+                Initializer.LOGGER.info("Using Display mode: "+ getDisplayModeString(requestedMode));
                 return requestedMode;
             }
         }
 
-        Initializer.LOGGER.warn("Requested mode not supported: using fallback VK_PRESENT_MODE_FIFO_KHR");
+        Initializer.LOGGER.info("Requested mode not supported!: using VSync mode as Fallback");
         return VK_PRESENT_MODE_FIFO_KHR;
 
     }
