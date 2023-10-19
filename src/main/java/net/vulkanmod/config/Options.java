@@ -6,52 +6,23 @@ import net.minecraft.network.chat.Component;
 import net.vulkanmod.Initializer;
 import net.vulkanmod.vulkan.Device;
 import net.vulkanmod.vulkan.Renderer;
-import net.vulkanmod.vulkan.Vulkan;
 import net.vulkanmod.vulkan.framebuffer.SwapChain;
 import org.lwjgl.system.MemoryStack;
-import org.lwjgl.vulkan.KHRSurface;
 
 import java.nio.IntBuffer;
 import java.util.Arrays;
 
 import static net.vulkanmod.vulkan.Device.device;
+import static net.vulkanmod.vulkan.framebuffer.SwapChain.*;
+import static org.lwjgl.vulkan.KHRSurface.*;
 
 public class Options {
 
-    //Fix Glitches+Crashes if Wayland and the Mesa RADV driver are used, and Queue Frames is set above 2 (possible RADV Bug?)
-    private static final boolean limitSwapChain = VideoResolution.isWayLand() && Vulkan.getDeviceInfo().isAMD();
     static net.minecraft.client.Options minecraftOptions = Minecraft.getInstance().options;
     static Config config = Initializer.CONFIG;
     static Window window = Minecraft.getInstance().getWindow();
     public static boolean fullscreenDirty = false;
 
-    private static final int minImages;
-
-    private static final int maxImages;
-
-
-    private static final int[] supportedImageModes;
-
-    static
-    {
-        try(MemoryStack stack = MemoryStack.stackPush())
-        {
-            Device.SurfaceProperties surfaceProperties = Device.querySurfaceProperties(device.getPhysicalDevice(), stack);
-            minImages = surfaceProperties.capabilities.minImageCount();
-            int maxImageCount = surfaceProperties.capabilities.maxImageCount();
-
-            boolean hasInfiniteSwapChain = maxImageCount == 0; //Applicable if Mesa/RADV Driver are present
-            maxImages = hasInfiniteSwapChain ? 64 : Math.min(maxImageCount, 32);
-
-            final IntBuffer presentModes = surfaceProperties.presentModes;
-            supportedImageModes = new int[presentModes.capacity()];
-            Arrays.setAll(supportedImageModes, presentModes::get);
-            Initializer.LOGGER.info("--=SUPPORTED PRESENT MODES:=--");
-            for (int supportedImageMode : supportedImageModes) {
-                Initializer.LOGGER.info(SwapChain.getDisplayModeString(supportedImageMode));
-            }
-        }
-    }
 
 
     public static Option<?>[] getVideoOpts() {
@@ -86,12 +57,33 @@ public class Options {
                             window.setFramerateLimit(value);
                         },
                         () -> minecraftOptions.framerateLimit().get()),
-                new SwitchOption("VSync",
+                new RangeOption("Display mode", 0, supportedImageModes.length-1, 1,
+                        value -> getDisplayModeString(supportedImageModes[value]),
                         value -> {
-                            minecraftOptions.enableVsync().set(value);
-                            Minecraft.getInstance().getWindow().updateVsync(value);
+                            int selectedDisplayMode = supportedImageModes[value];
+                            config.currentDisplayModeIndex = value;
+                            boolean isVSync = selectedDisplayMode == VK_PRESENT_MODE_FIFO_KHR || selectedDisplayMode == VK_PRESENT_MODE_FIFO_RELAXED_KHR;
+                            minecraftOptions.enableVsync().set(isVSync);
+                            Minecraft.getInstance().getWindow().updateVsync(isVSync);
                         },
-                        () -> minecraftOptions.enableVsync().get()),
+                        () -> config.currentDisplayModeIndex).setTooltip(Component.nullToEmpty(
+                        "Selects the current Display mode\n"+
+                        "At least VSync is always Available\n"+
+                        "Modes supported varies on GPU Driver\n"+
+                        "However most decent good quality drivers should support at least 1 uncapped mode or more\n" +
+                        "The Android Exclusive Shared Continuous/Demand refresh Modes are not supported ATM\n" +
+                                "\n" +
+                                "Unlimited: Uncapped FPS\n"+
+                                "Limited: Capped FPS\n" +
+                                "\n" +
+                                "Tearing: Supports Screen tearing\n"+
+                                "NoTearing: Forbids Screen tearing\n" +
+                                "\n"+
+                                "-=Supported modes=-\n\n"+
+                        "Immediate -> (Unlimited+Tearing)  "+ hasImmediate +"\n"+
+                        "FastSync -> (Unlimited+NoTearing) "+hasFastSync +"\n"+
+                        "VSync     -> (Limited+NoTearing)  "+hasVSync +"\n"+
+                        "Adaptive  -> (Limited+Tearing)    "+hasAdaptiveVSync)),
                 new CyclingOption<>("Gui Scale",
                         new Integer[]{0, 1, 2, 3, 4},
                         value -> value == 0 ? Component.literal("Auto") : Component.literal(value.toString()),

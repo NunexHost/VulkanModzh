@@ -32,6 +32,7 @@ import static org.lwjgl.vulkan.VK10.*;
 
 public class SwapChain extends Framebuffer {
 
+    public static final int[] supportedImageModes;
     private static int DEFAULT_DEPTH_FORMAT = 0;
     private static final boolean imagelessFramebuffers = Device.vk12;
     private final boolean sharedRefreshMode = false;
@@ -41,16 +42,45 @@ public class SwapChain extends Framebuffer {
     }
 
     private RenderPass renderPass;
-    //Necessary until tearing-control-unstable-v1 is fully implemented on all GPU Drivers for Wayland
-    private static final int defUncappedMode = checkPresentMode(VK_PRESENT_MODE_IMMEDIATE_KHR, VK_PRESENT_MODE_MAILBOX_KHR);
     private long[] framebuffer;
     private long swapChain = VK_NULL_HANDLE;
     private List<VulkanImage> swapChainImages;
     private VkExtent2D extent2D;
     public boolean isBGRAformat;
     private boolean vsync = false;
-
+    public static final int minImages, maxImages;
     private int[] currentLayout;
+    public static final boolean hasImmediate, hasFastSync, hasVSync, hasAdaptiveVSync;
+
+    static {
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            Device.SurfaceProperties surfaceProperties = Device.querySurfaceProperties(device.getPhysicalDevice(), stack);
+            minImages = surfaceProperties.capabilities.minImageCount();
+            int maxImageCount = surfaceProperties.capabilities.maxImageCount();
+
+            boolean hasInfiniteSwapChain = maxImageCount == 0; //Applicable if Mesa/RADV Driver are present
+            maxImages = hasInfiniteSwapChain ? 64 : Math.min(maxImageCount, 32);
+
+            final IntBuffer presentModes = surfaceProperties.presentModes;
+            supportedImageModes = new int[presentModes.capacity()];
+            Arrays.setAll(SwapChain.supportedImageModes, presentModes::get);
+            Initializer.LOGGER.info("--=SUPPORTED PRESENT MODES:=--");
+            for (int supportedImageMode : SwapChain.supportedImageModes) {
+                Initializer.LOGGER.info(SwapChain.getDisplayModeString(supportedImageMode));
+            }
+        }
+        hasAdaptiveVSync = hasMode(VK_PRESENT_MODE_FIFO_RELAXED_KHR);
+        hasVSync = hasMode(VK_PRESENT_MODE_FIFO_KHR);
+        hasFastSync = hasMode(VK_PRESENT_MODE_MAILBOX_KHR);
+        hasImmediate = hasMode(VK_PRESENT_MODE_IMMEDIATE_KHR);
+    }
+
+
+    private static boolean hasMode(int i1) {
+        for (int supportedImageMode : SwapChain.supportedImageModes)
+            if (i1 == supportedImageMode) return true;
+        return false;
+    }
 
     public SwapChain() {
         DEFAULT_DEPTH_FORMAT = Device.findDepthFormat();
@@ -212,12 +242,12 @@ public class SwapChain extends Framebuffer {
     public static String getDisplayModeString(int requestedMode) {
         return switch(requestedMode)
         {
-            case VK_PRESENT_MODE_IMMEDIATE_KHR -> "VK_PRESENT_MODE_IMMEDIATE_KHR";
-            case VK_PRESENT_MODE_MAILBOX_KHR -> "VK_PRESENT_MODE_MAILBOX_KHR";
-            case VK_PRESENT_MODE_FIFO_KHR -> "VK_PRESENT_MODE_FIFO_KHR";
-            case VK_PRESENT_MODE_FIFO_RELAXED_KHR -> "VK_PRESENT_MODE_FIFO_RELAXED_KHR";
-            case VK_PRESENT_MODE_SHARED_DEMAND_REFRESH_KHR -> "VK_PRESENT_MODE_SHARED_DEMAND_REFRESH_KHR";
-            case VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR ->  "VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR";
+            case VK_PRESENT_MODE_IMMEDIATE_KHR -> "Immediate";
+            case VK_PRESENT_MODE_MAILBOX_KHR -> "FastSync";
+            case VK_PRESENT_MODE_FIFO_KHR -> "VSync";
+            case VK_PRESENT_MODE_FIFO_RELAXED_KHR -> "Adaptive VSync";
+            case VK_PRESENT_MODE_SHARED_DEMAND_REFRESH_KHR -> "Shared Demand Refresh";
+            case VK_PRESENT_MODE_SHARED_CONTINUOUS_REFRESH_KHR ->  "Shared Continuous Refresh";
             default -> throw new IllegalStateException("Unexpected value: " + requestedMode);
         };
     }
@@ -375,16 +405,18 @@ public class SwapChain extends Framebuffer {
     }
 
     private int getPresentMode(IntBuffer availablePresentModes) {
-        int requestedMode = vsync ? VK_PRESENT_MODE_FIFO_KHR : defUncappedMode;
+        int requestedMode = supportedImageModes[Initializer.CONFIG.currentDisplayModeIndex];
 
-        for(int i = 0;i < availablePresentModes.capacity();i++) {
+        //Display Modes can vary between Windowed and Fullscreen, so can't optimise out this loop
+        String displayModeString = getDisplayModeString(requestedMode);
+        for(int i = 0; i < availablePresentModes.capacity(); i++) {
             if(availablePresentModes.get(i) == requestedMode) {
-                Initializer.LOGGER.info("Using Display mode: "+ getDisplayModeString(requestedMode));
+                Initializer.LOGGER.info("Using Display mode: "+ displayModeString);
                 return requestedMode;
             }
         }
 
-        Initializer.LOGGER.info("Requested mode not supported!: using VSync mode as Fallback");
+        Initializer.LOGGER.info(displayModeString + " mode not supported!: using VSync mode as Fallback");
         return VK_PRESENT_MODE_FIFO_KHR;
 
     }

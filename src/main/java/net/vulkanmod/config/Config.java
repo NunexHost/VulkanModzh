@@ -2,6 +2,7 @@ package net.vulkanmod.config;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import org.lwjgl.vulkan.KHRSurface;
 
 import java.io.FileReader;
 import java.io.IOException;
@@ -21,6 +22,8 @@ public class Config {
     public boolean indirectDraw = false;
     public boolean uniqueOpaqueLayer = true;
     public boolean entityCulling = true;
+
+    public int currentDisplayModeIndex = 0;
 
     private static Path path;
 
