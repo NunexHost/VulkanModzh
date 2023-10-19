@@ -160,7 +160,7 @@ public class Vulkan {
             Arrays.stream(stagingBuffers).forEach(Buffer::freeBuffer);
         }
 
-        stagingBuffers = new StagingBuffer[getSwapChainImages().size()];
+        stagingBuffers = new StagingBuffer[getFrameCount()];
 
         for(int i = 0; i < stagingBuffers.length; ++i) {
             stagingBuffers[i] = new StagingBuffer(30 * 1024 * 1024);
@@ -464,7 +464,7 @@ public class Vulkan {
         return swapChain.getExtent();
     }
 
-    public static List<VulkanImage> getSwapChainImages() { return swapChain.getImages(); }
+    public static int getFrameCount() { return swapChain.getFramesNum(); }
 
     public static long getCommandPool()
     {

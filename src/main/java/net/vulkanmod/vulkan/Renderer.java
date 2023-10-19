@@ -79,7 +79,7 @@ public class Renderer {
         TerrainShaderManager.init();
         AreaUploadManager.createInstance();
 
-        framesNum = getSwapChain().getFramesNum();
+        framesNum = getFrameCount();
 
         drawer = new Drawer();
         drawer.createResources(framesNum);
@@ -610,5 +610,6 @@ public class Renderer {
 
     public static VkCommandBuffer getCommandBuffer() { return INSTANCE.currentCmdBuffer; }
 
-    public static void scheduleSwapChainUpdate() { swapCahinUpdate = true; }
+    public static void scheduleSwapChainUpdate() { swapCahinUpdate = true; currentFrame=0;}
+    public void setFrameNum(int newFramesNum) { framesNum = newFramesNum; }
 }

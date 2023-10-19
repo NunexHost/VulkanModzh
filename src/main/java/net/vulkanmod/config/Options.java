@@ -198,6 +198,7 @@ public class Options {
                         value -> {
                             config.frameQueueSize = value;
                             Renderer.scheduleSwapChainUpdate();
+                            Renderer.getInstance().setFrameNum(value);
                         }, () -> config.frameQueueSize)
                         .setTooltip(Component.nullToEmpty("""
                         Manages the tradeoff between FPS and input lag

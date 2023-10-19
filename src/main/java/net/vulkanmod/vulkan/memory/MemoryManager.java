@@ -2,7 +2,6 @@ package net.vulkanmod.vulkan.memory;
 
 import it.unimi.dsi.fastutil.longs.Long2ReferenceOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
-import jdk.jfr.StackTrace;
 import net.vulkanmod.vulkan.Vulkan;
 import net.vulkanmod.vulkan.texture.VulkanImage;
 import org.apache.commons.lang3.Validate;
@@ -82,7 +81,9 @@ public class MemoryManager {
     }
 
     public void setCurrentFrame(int frame) {
-        Validate.isTrue(frame < Frames, "Out of bounds frame index");
+        if (frame > Frames) {
+            throw new IllegalArgumentException("Out of bounds frame index");
+        }
         this.currentFrame = frame;
     }
 
