@@ -87,7 +87,7 @@ public class SwapChain extends Framebuffer {
 
         createSwapChain();
 
-        return this.swapChainImages.size();
+        return this.getFramesNum();
     }
 
     public void createSwapChain() {
