@@ -117,7 +117,31 @@ public class RenderPass {
         }
     }
 
-    public void beginRenderPass(VkCommandBuffer commandBuffer, long framebufferId, MemoryStack stack, long colorImageView, long depthImageView) {
+    public void beginRenderPass(VkCommandBuffer commandBuffer, long framebufferId, MemoryStack stack) {
+
+
+        VkRenderPassBeginInfo renderPassInfo = VkRenderPassBeginInfo.callocStack(stack);
+        renderPassInfo.sType$Default();
+        renderPassInfo.renderPass(this.id);
+        renderPassInfo.framebuffer(framebufferId);
+
+        VkRect2D renderArea = VkRect2D.malloc(stack);
+        renderArea.offset().set(0, 0);
+        renderArea.extent().set(framebuffer.getWidth(), framebuffer.getHeight());
+        renderPassInfo.renderArea(renderArea);
+
+        VkClearValue.Buffer clearValues;
+        clearValues = VkClearValue.malloc(2, stack);
+        clearValues.get(0).color().float32(VRenderSystem.clearColor);
+        clearValues.get(1).depthStencil().set(1.0f, 0);
+
+        renderPassInfo.pClearValues(clearValues);
+
+        vkCmdBeginRenderPass(commandBuffer, renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+        Renderer.getInstance().setBoundRenderPass(this);
+    }
+    public void beginRenderPassImageless(VkCommandBuffer commandBuffer, long framebufferId, MemoryStack stack, long colorImageView, long depthImageView) {
 
 
         VkRenderPassAttachmentBeginInfoKHR vkRenderPassAttachmentBeginInfo = VkRenderPassAttachmentBeginInfoKHR.calloc(stack)

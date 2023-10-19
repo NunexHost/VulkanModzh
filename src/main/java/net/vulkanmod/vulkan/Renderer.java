@@ -610,6 +610,5 @@ public class Renderer {
 
     public static VkCommandBuffer getCommandBuffer() { return INSTANCE.currentCmdBuffer; }
 
-    public static void scheduleSwapChainUpdate() { swapCahinUpdate = true; currentFrame=0;}
-    public void setFrameNum(int newFramesNum) { framesNum = newFramesNum; }
+    public static void scheduleSwapChainUpdate() { swapCahinUpdate = true; }
 }

@@ -127,32 +127,25 @@ public class Device {
             if(deviceInfo.availableFeatures.features().logicOp())
                 deviceFeatures.features().logicOp(true);
 
-            VkPhysicalDeviceVulkan11Features deviceVulkan11Features = VkPhysicalDeviceVulkan11Features.calloc(stack);
-            deviceVulkan11Features.sType$Default();
+            VkPhysicalDeviceVulkan11Features deviceVulkan11Features = VkPhysicalDeviceVulkan11Features.calloc(stack)
+                    .sType$Default();
+
+            VkPhysicalDeviceVulkan12Features deviceVulkan12Features = VkPhysicalDeviceVulkan12Features.calloc(stack)
+                    .sType$Default()
+                    .imagelessFramebuffer(vk12);
 
             if(deviceInfo.isDrawIndirectSupported()) {
                 deviceFeatures.features().multiDrawIndirect(true);
                 deviceVulkan11Features.shaderDrawParameters(true);
             }
 
-            VkDeviceCreateInfo createInfo = VkDeviceCreateInfo.calloc(stack);
 
+            VkDeviceCreateInfo createInfo = VkDeviceCreateInfo.calloc(stack);
             createInfo.sType(VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO);
             createInfo.pQueueCreateInfos(queueCreateInfos);
             // queueCreateInfoCount is automatically set
-
             createInfo.pEnabledFeatures(deviceFeatures.features());
-
-            VkPhysicalDeviceImagelessFramebufferFeaturesKHR imagelessFramebufferFeaturesKHR = VkPhysicalDeviceImagelessFramebufferFeaturesKHR.calloc(stack)
-                    .sType$Default()
-                    .imagelessFramebuffer(true);
-//            VkPhysicalDeviceDynamicRenderingFeaturesKHR dynamicRenderingFeaturesKHR = VkPhysicalDeviceDynamicRenderingFeaturesKHR.calloc(stack);
-//            dynamicRenderingFeaturesKHR.sType$Default();
-//            dynamicRenderingFeaturesKHR.dynamicRendering(true);
-
-            createInfo.pNext(deviceVulkan11Features);
-            deviceVulkan11Features.pNext(imagelessFramebufferFeaturesKHR.address());
-
+            createInfo.pNext(deviceVulkan11Features).pNext(deviceVulkan12Features);
             //Vulkan 1.3 dynamic rendering
 //            VkPhysicalDeviceVulkan13Features deviceVulkan13Features = VkPhysicalDeviceVulkan13Features.calloc(stack);
 //            deviceVulkan13Features.sType$Default();
@@ -176,6 +169,8 @@ public class Device {
             if(vkCreateDevice(physicalDevice, createInfo, null, pDevice) != VK_SUCCESS) {
                 throw new RuntimeException("Failed to create logical device");
             }
+            Initializer.LOGGER.info("-=Enabled Features=-");
+            Initializer.LOGGER.info("ImageLessFrameBuffer: "+vk12);
 
             device = new VkDevice(pDevice.get(0), physicalDevice, createInfo, DeviceInfo.vkVer);
 
@@ -352,6 +347,10 @@ public class Device {
 
         return details;
     }
+
+    public static final boolean vk11 = VK_API_VERSION_MINOR(DeviceInfo.vkVer)>0;
+    public static final boolean vk12 = VK_API_VERSION_MINOR(DeviceInfo.vkVer)>1;
+    public static final boolean vk13 = VK_API_VERSION_MINOR(DeviceInfo.vkVer)>2;
 
     public static class SurfaceProperties {
         public VkSurfaceCapabilitiesKHR capabilities;

@@ -127,7 +127,7 @@ public class Framebuffer {
     public void beginRenderPass(VkCommandBuffer commandBuffer, RenderPass renderPass, MemoryStack stack) {
         if(!DYNAMIC_RENDERING) {
             long framebufferId = framebufferIds.computeIfAbsent(renderPass, renderPass1 -> createFramebuffer(renderPass));
-            renderPass.beginRenderPass(commandBuffer, framebufferId, stack, colorAttachment.getImageView(), depthAttachment.getImageView());
+            renderPass.beginRenderPassImageless(commandBuffer, framebufferId, stack, colorAttachment.getImageView(), depthAttachment.getImageView());
         }
         else
             renderPass.beginDynamicRendering(commandBuffer, stack);

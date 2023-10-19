@@ -11,6 +11,9 @@ import net.vulkanmod.vulkan.framebuffer.SwapChain;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.KHRSurface;
 
+import java.nio.IntBuffer;
+import java.util.Arrays;
+
 import static net.vulkanmod.vulkan.Device.device;
 
 public class Options {
@@ -27,6 +30,8 @@ public class Options {
     private static final int maxImages;
 
 
+    private static final int[] supportedImageModes;
+
     static
     {
         try(MemoryStack stack = MemoryStack.stackPush())
@@ -36,7 +41,15 @@ public class Options {
             int maxImageCount = surfaceProperties.capabilities.maxImageCount();
 
             boolean hasInfiniteSwapChain = maxImageCount == 0; //Applicable if Mesa/RADV Driver are present
-            maxImages = hasInfiniteSwapChain ? 64 : Math.min(maxImageCount, 8);
+            maxImages = hasInfiniteSwapChain ? 64 : Math.min(maxImageCount, 32);
+
+            final IntBuffer presentModes = surfaceProperties.presentModes;
+            supportedImageModes = new int[presentModes.capacity()];
+            Arrays.setAll(supportedImageModes, presentModes::get);
+            Initializer.LOGGER.info("--=SUPPORTED PRESENT MODES:=--");
+            for (int supportedImageMode : supportedImageModes) {
+                Initializer.LOGGER.info(SwapChain.getDisplayModeString(supportedImageMode));
+            }
         }
     }
 
@@ -198,7 +211,6 @@ public class Options {
                         value -> {
                             config.frameQueueSize = value;
                             Renderer.scheduleSwapChainUpdate();
-                            Renderer.getInstance().setFrameNum(value);
                         }, () -> config.frameQueueSize)
                         .setTooltip(Component.nullToEmpty("""
                         Manages the tradeoff between FPS and input lag

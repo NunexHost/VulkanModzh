@@ -14,6 +14,7 @@ import org.lwjgl.vulkan.*;
 import java.nio.IntBuffer;
 import java.nio.LongBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import static net.vulkanmod.vulkan.Device.device;
@@ -32,6 +33,8 @@ import static org.lwjgl.vulkan.VK10.*;
 public class SwapChain extends Framebuffer {
 
     private static int DEFAULT_DEPTH_FORMAT = 0;
+    private static final boolean imagelessFramebuffers = Device.vk12;
+    private final boolean sharedRefreshMode = false;
 
     public static int getDefaultDepthFormat() {
         return DEFAULT_DEPTH_FORMAT;
@@ -40,7 +43,7 @@ public class SwapChain extends Framebuffer {
     private RenderPass renderPass;
     //Necessary until tearing-control-unstable-v1 is fully implemented on all GPU Drivers for Wayland
     private static final int defUncappedMode = checkPresentMode(VK_PRESENT_MODE_IMMEDIATE_KHR, VK_PRESENT_MODE_MAILBOX_KHR);
-    private long framebuffer;
+    private long[] framebuffer;
     private long swapChain = VK_NULL_HANDLE;
     private List<VulkanImage> swapChainImages;
     private VkExtent2D extent2D;
@@ -55,6 +58,7 @@ public class SwapChain extends Framebuffer {
         this.attachmentCount = 2;
 
         this.depthFormat = DEFAULT_DEPTH_FORMAT;
+        this.framebuffer = new long[imagelessFramebuffers ? 1 : getImagesNum()];
         createSwapChain();
 
     }
@@ -79,10 +83,12 @@ public class SwapChain extends Framebuffer {
             this.depthAttachment = null;
         }
 
-        if(!DYNAMIC_RENDERING && framebuffer != 0) {
+        if(!DYNAMIC_RENDERING) {
 //            this.renderPass.cleanUp();
-            vkDestroyFramebuffer(getDevice(), framebuffer, null);
-//            framebuffer = null;
+            for (long id : framebuffer) {
+                vkDestroyFramebuffer(getDevice(), id, null);
+            }
+            if(getImagesNum()!=framebuffer.length) framebuffer=new long[getImagesNum()];
         }
 
         createSwapChain();
@@ -114,6 +120,9 @@ public class SwapChain extends Framebuffer {
 
             if(Initializer.CONFIG.minImageCount < surfaceProperties.capabilities.minImageCount())
                 Initializer.CONFIG.minImageCount = surfaceProperties.capabilities.minImageCount();
+
+            if(sharedRefreshMode)
+                Initializer.CONFIG.minImageCount = 1;
 
             int requestedFrames = Initializer.CONFIG.minImageCount;
 
@@ -200,7 +209,7 @@ public class SwapChain extends Framebuffer {
 
         }
     }
-    private String getDisplayModeString(int requestedMode) {
+    public static String getDisplayModeString(int requestedMode) {
         return switch(requestedMode)
         {
             case VK_PRESENT_MODE_IMMEDIATE_KHR -> "VK_PRESENT_MODE_IMMEDIATE_KHR";
@@ -222,8 +231,41 @@ public class SwapChain extends Framebuffer {
     private void createFramebuffers() {
 
         try(MemoryStack stack = MemoryStack.stackPush()) {
+            for(int i = 0; i< framebuffer.length; i++) {
 
-            VkFramebufferAttachmentImageInfoKHR.Buffer vkFramebufferAttachmentImageInfo = VkFramebufferAttachmentImageInfoKHR.calloc(2, stack);
+                //attachments = stack.mallocLong(1);
+
+//            var value = imagelessFramebuffers ? 1 : 1.0f;
+
+
+                LongBuffer pFramebuffer = stack.mallocLong(1);
+
+                VkFramebufferCreateInfo framebufferInfo = VkFramebufferCreateInfo.calloc(stack);
+                framebufferInfo.sType(VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO);
+                framebufferInfo.flags(imagelessFramebuffers ? VK12.VK_FRAMEBUFFER_CREATE_IMAGELESS_BIT : 0);
+                framebufferInfo.pNext(FrameBufferAttachments(stack));
+                framebufferInfo.renderPass(this.renderPass.getId());
+                framebufferInfo.width(this.width);
+                framebufferInfo.height(this.height);
+                framebufferInfo.layers(1);
+                framebufferInfo.attachmentCount(2);
+                framebufferInfo.pAttachments(imagelessFramebuffers ? null : stack.longs(this.swapChainImages.get(i).getImageView(), depthAttachment.getImageView()));
+
+
+                if (vkCreateFramebuffer(Vulkan.getDevice(), framebufferInfo, null, pFramebuffer) != VK_SUCCESS) {
+                    throw new RuntimeException("Failed to create framebuffer");
+                }
+
+
+                this.framebuffer[i] = pFramebuffer.get(0);
+            }
+        }
+    }
+
+    private long FrameBufferAttachments(MemoryStack stack) {
+        if(imagelessFramebuffers) {
+
+            VkFramebufferAttachmentImageInfo.Buffer vkFramebufferAttachmentImageInfo = VkFramebufferAttachmentImageInfo.calloc(2, stack);
 
 
             vkFramebufferAttachmentImageInfo.get(0)
@@ -247,29 +289,11 @@ public class SwapChain extends Framebuffer {
                     .usage(VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
 
 
-            VkFramebufferAttachmentsCreateInfoKHR vkFramebufferAttachmentsCreateInfo = VkFramebufferAttachmentsCreateInfoKHR.calloc(stack)
+            return VkFramebufferAttachmentsCreateInfo.calloc(stack)
                     .sType$Default()
-                    .pAttachmentImageInfos(vkFramebufferAttachmentImageInfo);
-
-            LongBuffer pFramebuffer = stack.mallocLong(1);
-
-            VkFramebufferCreateInfo framebufferInfo = VkFramebufferCreateInfo.calloc(stack);
-            framebufferInfo.sType(VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO);
-            framebufferInfo.flags(KHRImagelessFramebuffer.VK_FRAMEBUFFER_CREATE_IMAGELESS_BIT_KHR);
-            framebufferInfo.pNext(vkFramebufferAttachmentsCreateInfo.address());
-            framebufferInfo.renderPass(this.renderPass.getId());
-            framebufferInfo.width(this.width);
-            framebufferInfo.height(this.height);
-            framebufferInfo.layers(1);
-            framebufferInfo.attachmentCount(2);
-//            framebufferInfo.pAttachments(attachments);
-
-            if(vkCreateFramebuffer(Vulkan.getDevice(), framebufferInfo, null, pFramebuffer) != VK_SUCCESS) {
-                throw new RuntimeException("Failed to create framebuffer");
-            }
-
-            this.framebuffer = pFramebuffer.get(0);
+                    .pAttachmentImageInfos(vkFramebufferAttachmentImageInfo).address();
         }
+        return VK_NULL_HANDLE;
     }
 
     public void beginRenderPass(VkCommandBuffer commandBuffer, MemoryStack stack) {
@@ -280,7 +304,9 @@ public class SwapChain extends Framebuffer {
             this.renderPass.beginDynamicRendering(commandBuffer, stack);
         }
         else {
-            this.renderPass.beginRenderPass(commandBuffer, this.framebuffer, stack, this.swapChainImages.get(Renderer.getImageIndex()).getImageView(), depthAttachment.getImageView());
+            int imageIndex = Renderer.getImageIndex();
+            if(imagelessFramebuffers) this.renderPass.beginRenderPassImageless(commandBuffer, this.framebuffer[0], stack, this.swapChainImages.get(imageIndex).getImageView(), depthAttachment.getImageView());
+            else this.renderPass.beginRenderPass(commandBuffer, this.framebuffer[imageIndex], stack);
         }
 
         Renderer.getInstance().setBoundRenderPass(renderPass);
@@ -290,11 +316,10 @@ public class SwapChain extends Framebuffer {
     public void cleanUp() {
         VkDevice device = Vulkan.getDevice();
 
-//        framebuffers.forEach(framebuffer -> vkDestroyFramebuffer(device, framebuffer, null));
-
-        if(!DYNAMIC_RENDERING) {
-            vkDestroyFramebuffer(device, framebuffer, null);
+        for (long l : framebuffer) {
+            vkDestroyFramebuffer(device, l, null);
         }
+
 
         vkDestroySwapchainKHR(device, this.swapChain, null);
         swapChainImages.forEach(image -> vkDestroyImageView(device, image.getImageView(), null));
