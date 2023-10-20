@@ -22,9 +22,6 @@ public class Config {
     public boolean indirectDraw = false;
     public boolean uniqueOpaqueLayer = true;
     public boolean entityCulling = true;
-
-    public int currentDisplayModeIndex = 0;
-
     private static Path path;
 
     private static final Gson GSON = new GsonBuilder()

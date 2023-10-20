@@ -170,8 +170,8 @@ public class Device {
                 throw new RuntimeException("Failed to create logical device");
             }
             Initializer.LOGGER.info("-=Enabled Features=-");
-            Initializer.LOGGER.info("ImageLessFrameBuffer: "+vk12);
-            Initializer.LOGGER.info("StoreOpNone: "+vk13);
+            Initializer.LOGGER.info("   ImageLessFrameBuffer: "+vk12);
+            Initializer.LOGGER.info("   StoreOpNone: "+vk13);
 
             device = new VkDevice(pDevice.get(0), physicalDevice, createInfo, DeviceInfo.vkVer);
 
