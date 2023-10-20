@@ -51,27 +51,12 @@ public class Options {
                             window.setFramerateLimit(value);
                         },
                         () -> minecraftOptions.framerateLimit().get()),
-                new RangeOption("Display mode", 0, supportedImageModes.length-1, 1,
-                        value -> getDisplayModeString(supportedImageModes[value]),
+                new SwitchOption("VSync",
                         value -> {
-                            int selectedDisplayMode = supportedImageModes[value];
-                            config.currentDisplayModeIndex = value;
-                            boolean isVSync = selectedDisplayMode == VK_PRESENT_MODE_FIFO_KHR || selectedDisplayMode == VK_PRESENT_MODE_FIFO_RELAXED_KHR;
-                            minecraftOptions.enableVsync().set(isVSync);
-                            Minecraft.getInstance().getWindow().updateVsync(isVSync);
+                            minecraftOptions.enableVsync().set(value);
+                            Minecraft.getInstance().getWindow().updateVsync(value);
                         },
-                        () -> config.currentDisplayModeIndex).setTooltip(Component.nullToEmpty(
-                        "Selects the current Display mode\n"+
-                        "Modes supported varies on GPU Driver\n"+
-                        "At least VSync is always Available\n\n"+
-
-                        "(The Android Exclusive Shared Continuous/Demand refresh Modes are not supported ATM\n\n" +
-
-                                "-=Supported modes=-\n\n"+
-                        "Immediate      -> "+ getString(hasImmediate) +"\n"+
-                        "FastSync       -> "+(getString(hasFastSync)) +"\n"+
-                        "VSync          -> "+(getString(hasVSync)) +"\n"+
-                        "Adaptive Vsync -> "+(getString(hasAdaptiveVSync)))),
+                        () -> minecraftOptions.enableVsync().get()),
                 new CyclingOption<>("Gui Scale",
                         new Integer[]{0, 1, 2, 3, 4},
                         value -> value == 0 ? Component.literal("Auto") : Component.literal(value.toString()),
@@ -81,11 +66,11 @@ public class Options {
                         },
                         () -> minecraftOptions.guiScale().get()),
                 new RangeOption("Brightness", 0, 100, 1,
-                        value -> {
-                          if(value == 0) return Component.translatable("options.gamma.min").getString();
-                          else if(value == 50) return Component.translatable("options.gamma.default").getString();
-                          else if(value == 100) return Component.translatable("options.gamma.max").getString();
-                          return value.toString();
+                        value -> switch (value) {
+                            case 0 -> Component.translatable("options.gamma.min").getString();
+                            case 50 -> Component.translatable("options.gamma.default").getString();
+                            case 100 -> Component.translatable("options.gamma.max").getString();
+                            default -> value.toString();
                         },
                         value -> minecraftOptions.gamma().set(value * 0.01),
                         () -> (int) (minecraftOptions.gamma().get() * 100.0)),

@@ -32,10 +32,11 @@ import static org.lwjgl.vulkan.VK10.*;
 
 public class SwapChain extends Framebuffer {
 
-    public static final int[] supportedImageModes;
+    public static final int defUncappedMode;
     private static int DEFAULT_DEPTH_FORMAT = 0;
     private static final boolean imagelessFramebuffers = Device.vk12;
-    private final boolean sharedRefreshMode = false;
+
+
 
     public static int getDefaultDepthFormat() {
         return DEFAULT_DEPTH_FORMAT;
@@ -50,7 +51,7 @@ public class SwapChain extends Framebuffer {
     private boolean vsync = false;
     public static final int minImages, maxImages;
     private int[] currentLayout;
-    public static final boolean hasImmediate, hasFastSync, hasVSync, hasAdaptiveVSync;
+
 
     static {
         try (MemoryStack stack = MemoryStack.stackPush()) {
@@ -60,25 +61,31 @@ public class SwapChain extends Framebuffer {
 
             boolean hasInfiniteSwapChain = maxImageCount == 0; //Applicable if Mesa/RADV Driver are present
             maxImages = hasInfiniteSwapChain ? 64 : Math.min(maxImageCount, 32);
-
-            final IntBuffer presentModes = surfaceProperties.presentModes;
-            supportedImageModes = new int[presentModes.capacity()];
-            Arrays.setAll(SwapChain.supportedImageModes, presentModes::get);
-            Initializer.LOGGER.info("--=SUPPORTED PRESENT MODES:=--");
-            for (int supportedImageMode : SwapChain.supportedImageModes) {
-                Initializer.LOGGER.info(SwapChain.getDisplayModeString(supportedImageMode));
+            boolean hasFastSync = hasMode(VK_PRESENT_MODE_MAILBOX_KHR, surfaceProperties.presentModes);
+            boolean hasImmediate = hasMode(VK_PRESENT_MODE_IMMEDIATE_KHR, surfaceProperties.presentModes);
+            if(hasFastSync)
+            {
+                defUncappedMode = VK_PRESENT_MODE_MAILBOX_KHR;
             }
+            else if(hasImmediate)
+            {
+                defUncappedMode = VK_PRESENT_MODE_IMMEDIATE_KHR;
+            }
+            else defUncappedMode = VK_PRESENT_MODE_FIFO_KHR;
+
+
         }
-        hasAdaptiveVSync = hasMode(VK_PRESENT_MODE_FIFO_RELAXED_KHR);
-        hasVSync = hasMode(VK_PRESENT_MODE_FIFO_KHR);
-        hasFastSync = hasMode(VK_PRESENT_MODE_MAILBOX_KHR);
-        hasImmediate = hasMode(VK_PRESENT_MODE_IMMEDIATE_KHR);
+
+
     }
 
 
-    private static boolean hasMode(int i1) {
-        for (int supportedImageMode : SwapChain.supportedImageModes)
-            if (i1 == supportedImageMode) return true;
+    private static boolean hasMode(int requestedMode, IntBuffer availablePresentModes) {
+        for(int i = 0; i < availablePresentModes.capacity(); i++) {
+            if(availablePresentModes.get(i) == requestedMode) {
+                return true;
+            }
+        }
         return false;
     }
 
@@ -150,9 +157,9 @@ public class SwapChain extends Framebuffer {
 
             if(Initializer.CONFIG.minImageCount < surfaceProperties.capabilities.minImageCount())
                 Initializer.CONFIG.minImageCount = surfaceProperties.capabilities.minImageCount();
-
-            if(sharedRefreshMode)
-                Initializer.CONFIG.minImageCount = 1;
+//
+//            if(sharedRefreshMode)
+//                Initializer.CONFIG.minImageCount = 1;
 
             int requestedFrames = Initializer.CONFIG.minImageCount;
 
@@ -405,7 +412,7 @@ public class SwapChain extends Framebuffer {
     }
 
     private int getPresentMode(IntBuffer availablePresentModes) {
-        int requestedMode = supportedImageModes[Initializer.CONFIG.currentDisplayModeIndex];
+        int requestedMode = vsync ? VK_PRESENT_MODE_FIFO_KHR : defUncappedMode;
 
         //Display Modes can vary between Windowed and Fullscreen, so can't optimise out this loop
         String displayModeString = getDisplayModeString(requestedMode);

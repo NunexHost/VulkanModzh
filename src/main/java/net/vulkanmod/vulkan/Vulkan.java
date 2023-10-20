@@ -449,8 +449,10 @@ public class Vulkan {
     }
 
     public static void setVsync(boolean b) {
-        Renderer.scheduleSwapChainUpdate();
-        swapChain.setVsync(b);
+        if (swapChain.isVsync() != b) {
+            Renderer.scheduleSwapChainUpdate();
+            swapChain.setVsync(b);
+        }
     }
 
     public static long getSurface() { return surface; }
