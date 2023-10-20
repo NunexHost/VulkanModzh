@@ -14,7 +14,6 @@ import org.lwjgl.vulkan.*;
 import java.nio.IntBuffer;
 import java.nio.LongBuffer;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 import static net.vulkanmod.vulkan.Device.device;
@@ -50,7 +49,6 @@ public class SwapChain extends Framebuffer {
     public boolean isBGRAformat;
     private boolean vsync = false;
     public static final int minImages, maxImages;
-    private int[] currentLayout;
 
 
     static {
@@ -61,17 +59,7 @@ public class SwapChain extends Framebuffer {
 
             boolean hasInfiniteSwapChain = maxImageCount == 0; //Applicable if Mesa/RADV Driver are present
             maxImages = hasInfiniteSwapChain ? 64 : Math.min(maxImageCount, 32);
-            boolean hasFastSync = hasMode(VK_PRESENT_MODE_MAILBOX_KHR, surfaceProperties.presentModes);
-            boolean hasImmediate = hasMode(VK_PRESENT_MODE_IMMEDIATE_KHR, surfaceProperties.presentModes);
-            if(hasFastSync)
-            {
-                defUncappedMode = VK_PRESENT_MODE_MAILBOX_KHR;
-            }
-            else if(hasImmediate)
-            {
-                defUncappedMode = VK_PRESENT_MODE_IMMEDIATE_KHR;
-            }
-            else defUncappedMode = VK_PRESENT_MODE_FIFO_KHR;
+            defUncappedMode = checkPresentMode(VK_PRESENT_MODE_IMMEDIATE_KHR, VK_PRESENT_MODE_MAILBOX_KHR, surfaceProperties.presentModes); //Prefer Immediate if possible (less input lag + closer to default Vanilla behaviour)
 
 
         }
@@ -79,15 +67,6 @@ public class SwapChain extends Framebuffer {
 
     }
 
-
-    private static boolean hasMode(int requestedMode, IntBuffer availablePresentModes) {
-        for(int i = 0; i < availablePresentModes.capacity(); i++) {
-            if(availablePresentModes.get(i) == requestedMode) {
-                return true;
-            }
-        }
-        return false;
-    }
 
     public SwapChain() {
         DEFAULT_DEPTH_FORMAT = Device.findDepthFormat();
@@ -95,21 +74,18 @@ public class SwapChain extends Framebuffer {
         this.attachmentCount = 2;
 
         this.depthFormat = DEFAULT_DEPTH_FORMAT;
-        this.framebuffer = new long[imagelessFramebuffers ? 1 : getImagesNum()];
+        this.framebuffer = new long[imagelessFramebuffers ? 1 : getActualImagesNum()];
         createSwapChain();
 
     }
 
-    public static int checkPresentMode(int requestedMode, int fallback) {
-        try(MemoryStack stack = MemoryStack.stackPush()) {
-            IntBuffer surfaceProperties = Device.querySurfaceProperties(device.getPhysicalDevice(), stack).presentModes;
-            for (int i = 0; i < surfaceProperties.capacity(); i++) {
-                if (surfaceProperties.get(i) == requestedMode) {
-                    return requestedMode;
-                }
+    public static int checkPresentMode(int requestedMode, int fallback, IntBuffer surfaceProperties) {
+        for (int i = 0; i < surfaceProperties.capacity(); i++) {
+            if (surfaceProperties.get(i) == requestedMode) {
+                return requestedMode;
             }
-            return fallback;
         }
+        return fallback;
     }
 
     public int recreateSwapChain() {
@@ -125,7 +101,7 @@ public class SwapChain extends Framebuffer {
             for (long id : framebuffer) {
                 vkDestroyFramebuffer(getDevice(), id, null);
             }
-            if(getImagesNum()!=framebuffer.length) framebuffer=new long[getImagesNum()];
+            if(getActualImagesNum()!=framebuffer.length) framebuffer=new long[getActualImagesNum()];
         }
 
         createSwapChain();
@@ -162,8 +138,6 @@ public class SwapChain extends Framebuffer {
 //                Initializer.CONFIG.minImageCount = 1;
 
             int requestedFrames = Initializer.CONFIG.minImageCount;
-
-            Initializer.LOGGER.info("requestedFrames" + requestedFrames);
 
 
             IntBuffer imageCount = stack.ints(requestedFrames);
@@ -222,7 +196,7 @@ public class SwapChain extends Framebuffer {
 
             swapChainImages = new ArrayList<>(imageCount.get(0));
 
-            Initializer.LOGGER.info("requested Images: "+pSwapchainImages.capacity());
+            Initializer.LOGGER.info("Requested Images:" + requestedFrames+ " -> Actual Images: "+pSwapchainImages.capacity());
 
             this.width = extent2D.width();
             this.height = extent2D.height();
@@ -233,7 +207,6 @@ public class SwapChain extends Framebuffer {
 
                 swapChainImages.add(new VulkanImage(imageId, this.format, 1, this.width, this.height, 4, 0, imageView));
             }
-            currentLayout = new int[this.swapChainImages.size()];
 
             createDepthResources();
 
@@ -464,5 +437,6 @@ public class SwapChain extends Framebuffer {
     }
 
     public int getFramesNum() { return Initializer.CONFIG.frameQueueSize; }
-    public int getImagesNum() { return Initializer.CONFIG.minImageCount; }
+    public int minRequiredImageLimit() { return Initializer.CONFIG.minImageCount; }
+    public int getActualImagesNum() { return this.swapChainImages.size(); }
 }

@@ -184,16 +184,20 @@ public class Options {
                         }, () -> config.frameQueueSize)
                         .setTooltip(Component.nullToEmpty("""
                         Manages the tradeoff between FPS and input lag
-                        Higher = improved FPS but more input lag
-                        Lower = decreased FPS but less input lag""")),
-                new RangeOption("Image Count", minImages,
+                        Higher = More FPS but more input lag
+                        Lower = Less FPS but less input lag
+                        
+                        Most GPUs don't benefit from more than 2
+                        So 2 is recommended for most systems""")),
+                        new RangeOption("Min Image Count", minImages,
                         maxImages, 1,
                         value -> {
                             config.minImageCount = value;
                             Renderer.scheduleSwapChainUpdate();
                         }, () -> config.minImageCount)
                         .setTooltip(Component.nullToEmpty("""
-                        Sets the number of Swapchain images
+                        Sets the MIN number of SwapChain images
+                        (e.g. GPU requests 3, actually gets 4)
                         Higher values can boost GPU performance
                         But at the cost of increased input lag""")),
                 new SwitchOption("Gui Optimizations",
