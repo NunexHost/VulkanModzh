@@ -1,5 +1,6 @@
 package net.vulkanmod.vulkan;
 
+import net.vulkanmod.Initializer;
 import net.vulkanmod.vulkan.framebuffer.SwapChain;
 import net.vulkanmod.vulkan.memory.Buffer;
 import net.vulkanmod.vulkan.memory.MemoryManager;
@@ -37,6 +38,7 @@ import static org.lwjgl.vulkan.EXTDebugUtils.*;
 import static org.lwjgl.vulkan.KHRDynamicRendering.VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME;
 import static org.lwjgl.vulkan.KHRSwapchain.VK_KHR_SWAPCHAIN_EXTENSION_NAME;
 import static org.lwjgl.vulkan.VK10.*;
+import static org.lwjgl.vulkan.VK11.vkEnumerateInstanceVersion;
 
 public class Vulkan {
 
@@ -47,6 +49,8 @@ public class Vulkan {
     public static final boolean DYNAMIC_RENDERING = false;
 
     public static final Set<String> VALIDATION_LAYERS;
+    public static final int vkVer = getVkVer();
+
     static {
         if(ENABLE_VALIDATION_LAYERS) {
             VALIDATION_LAYERS = new HashSet<>();
@@ -479,5 +483,20 @@ public class Vulkan {
     public static StagingBuffer getStagingBuffer(int i) { return stagingBuffers[i]; }
 
     public static DeviceInfo getDeviceInfo() { return Device.deviceInfo; }
+
+    static int getVkVer() {
+        try(MemoryStack stack = MemoryStack.stackPush())
+        {
+            var a = stack.mallocInt(1);
+            vkEnumerateInstanceVersion(a);
+            int vkVer1 = a.get(0);
+            if(VK_VERSION_MINOR(vkVer1)<1)
+            {
+                throw new RuntimeException("Vulkan 1.1 not supported!: "+"Only Has: "+ decDefVersion(vkVer1));
+            }
+            Initializer.LOGGER.info("Using Vulkan: "+decDefVersion(vkVer1));
+            return vkVer1;
+        }
+    }
 }
 

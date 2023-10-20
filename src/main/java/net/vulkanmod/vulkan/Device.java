@@ -173,7 +173,7 @@ public class Device {
             Initializer.LOGGER.info("   ImageLessFrameBuffer: "+vk12);
             Initializer.LOGGER.info("   StoreOpNone: "+vk13);
 
-            device = new VkDevice(pDevice.get(0), physicalDevice, createInfo, DeviceInfo.vkVer);
+            device = new VkDevice(pDevice.get(0), physicalDevice, createInfo, Vulkan.vkVer);
 
 //            PointerBuffer pQueue = stack.pointers(VK_NULL_HANDLE);
 //
@@ -349,9 +349,9 @@ public class Device {
         return details;
     }
 
-    public static final boolean vk11 = VK_API_VERSION_MINOR(DeviceInfo.vkVer)>0;
-    public static final boolean vk12 = VK_API_VERSION_MINOR(DeviceInfo.vkVer)>1;
-    public static final boolean vk13 = VK_API_VERSION_MINOR(DeviceInfo.vkVer)>2;
+    public static final boolean vk11 = VK_API_VERSION_MINOR(Vulkan.vkVer)>0;
+    public static final boolean vk12 = VK_API_VERSION_MINOR(Vulkan.vkVer)>1;
+    public static final boolean vk13 = VK_API_VERSION_MINOR(Vulkan.vkVer)>2;
 
     public static class SurfaceProperties {
         public VkSurfaceCapabilitiesKHR capabilities;

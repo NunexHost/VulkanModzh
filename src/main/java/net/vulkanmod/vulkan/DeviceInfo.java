@@ -1,7 +1,5 @@
 package net.vulkanmod.vulkan;
 
-import net.vulkanmod.Initializer;
-import net.vulkanmod.vulkan.framebuffer.SwapChain;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.*;
@@ -32,8 +30,7 @@ public class DeviceInfo {
     public final String vendorIdString;
     public final String deviceName;
     public final String driverVersion;
-    public static final int vkVer = getVkVer();
-    public static final String vkVersion = decDefVersion(vkVer);
+    public static final String vkVersion = decDefVersion(Vulkan.vkVer);
 
     public GraphicsCard graphicsCard;
 
@@ -121,21 +118,6 @@ public class DeviceInfo {
 
     private static String decodeNvidia(int v) {
         return (v >>> 22 & 0x3FF) + "." + (v >>> 14 & 0xff) + "." + (v >>> 6 & 0xff) + "." + (v & 0xff);
-    }
-
-    static int getVkVer() {
-        try(MemoryStack stack = MemoryStack.stackPush())
-        {
-            var a = stack.mallocInt(1);
-            vkEnumerateInstanceVersion(a);
-            int vkVer1 = a.get(0);
-            if(VK_VERSION_MINOR(vkVer1)<1)
-            {
-                throw new RuntimeException("Vulkan 1.1 not supported!: "+"Only Has: "+ decDefVersion(vkVer1));
-            }
-            Initializer.LOGGER.info("Using Vulkan: "+decDefVersion(vkVer1));
-            return vkVer1;
-        }
     }
 
     private String unsupportedExtensions(Set<String> requiredExtensions) {
