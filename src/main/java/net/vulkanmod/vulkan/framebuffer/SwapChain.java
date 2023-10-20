@@ -108,13 +108,11 @@ public class SwapChain extends Framebuffer {
         }
 
         final int actualImageNum = createSwapChain();
-        if(!vk12) {
-//            this.renderPass.cleanUp();
-            for (long id : framebuffer) {
-                vkDestroyFramebuffer(getDevice(), id, null);
-            }
-            if(actualImageNum!=framebuffer.length) framebuffer=new long[actualImageNum];
+        //            this.renderPass.cleanUp();
+        for (long id : framebuffer) {
+            vkDestroyFramebuffer(getDevice(), id, null);
         }
+        if(actualImageNum!=framebuffer.length) framebuffer=new long[actualImageNum];
 
         createFramebuffers();
 
