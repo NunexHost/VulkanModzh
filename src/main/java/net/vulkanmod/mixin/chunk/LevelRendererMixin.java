@@ -26,7 +26,9 @@ import org.jetbrains.annotations.Nullable;
 import org.joml.Matrix4f;
 import org.spongepowered.asm.mixin.*;
 import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Desc;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import java.util.Set;
@@ -113,8 +115,9 @@ public abstract class LevelRendererMixin {
      * @author
      * @reason
      */
-    @Overwrite
-    private void renderSectionLayer(RenderType renderType, PoseStack poseStack, double camX, double camY, double camZ, Matrix4f projectionMatrix) {
+    @Desc(id = "at", value = "renderSectionLayer", args = {RenderType.class, PoseStack.class, double.class, double.class, double.class, Matrix4f.class})
+    @Redirect(method = "renderLevel", at=@At(value = "INVOKE", target = "@Desc"))
+    private void renderSectionLayer(LevelRenderer instance, RenderType renderType, PoseStack poseStack, double camX, double camY, double camZ, Matrix4f projectionMatrix) {
         this.worldRenderer.renderSectionLayer(renderType, poseStack, camX, camY, camZ, projectionMatrix);
     }
 
