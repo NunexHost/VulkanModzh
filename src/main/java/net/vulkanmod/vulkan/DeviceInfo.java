@@ -1,5 +1,6 @@
 package net.vulkanmod.vulkan;
 
+import net.vulkanmod.Initializer;
 import net.vulkanmod.vulkan.framebuffer.SwapChain;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
@@ -132,6 +133,7 @@ public class DeviceInfo {
             {
                 throw new RuntimeException("Vulkan 1.1 not supported!: "+"Only Has: "+ decDefVersion(vkVer1));
             }
+            Initializer.LOGGER.info("Using Vulkan: "+decDefVersion(vkVer1));
             return vkVer1;
         }
     }

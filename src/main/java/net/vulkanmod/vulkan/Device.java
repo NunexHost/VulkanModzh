@@ -171,6 +171,7 @@ public class Device {
             }
             Initializer.LOGGER.info("-=Enabled Features=-");
             Initializer.LOGGER.info("ImageLessFrameBuffer: "+vk12);
+            Initializer.LOGGER.info("StoreOpNone: "+vk13);
 
             device = new VkDevice(pDevice.get(0), physicalDevice, createInfo, DeviceInfo.vkVer);
 
