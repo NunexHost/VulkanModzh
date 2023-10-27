@@ -222,7 +222,7 @@ public class Renderer {
         p.pop();
 
         try(MemoryStack stack = stackPush()) {
-            /*if(acquiredImages.isEmpty()) */PushNextFrame();
+            if(acquiredImages.isEmpty()) PushNextFrame();
             VkCommandBufferBeginInfo beginInfo = VkCommandBufferBeginInfo.calloc(stack);
             beginInfo.sType(VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO);
             beginInfo.flags(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
@@ -311,7 +311,7 @@ public class Renderer {
 //        if(acquiredImages.isEmpty()) {
 //            skipRendering=true; return;
 //        }
-        PushNextFrame();
+//        PushNextFrame();
         try(MemoryStack stack = stackPush()) {
 
 
@@ -474,7 +474,7 @@ public class Renderer {
         int newFramesNum = getSwapChain().getFramesNum();
 
         if(framesNum != newFramesNum) {
-            AreaUploadManager.INSTANCE.waitAllUploads();
+            AreaUploadManager.INSTANCE.waitUploads();
             destroySyncObjects();
 
             framesNum = newFramesNum;
