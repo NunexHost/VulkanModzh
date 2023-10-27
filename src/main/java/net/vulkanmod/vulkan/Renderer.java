@@ -1,8 +1,11 @@
 package net.vulkanmod.vulkan;
 
+import it.unimi.dsi.fastutil.longs.LongArrayFIFOQueue;
+import it.unimi.dsi.fastutil.objects.ObjectArrayFIFOQueue;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import net.minecraft.client.Minecraft;
+import net.vulkanmod.Initializer;
 import net.vulkanmod.render.chunk.AreaUploadManager;
 import net.vulkanmod.render.chunk.TerrainShaderManager;
 import net.vulkanmod.render.profiling.Profiler2;
@@ -11,7 +14,10 @@ import net.vulkanmod.vulkan.framebuffer.RenderPass;
 import net.vulkanmod.vulkan.memory.MemoryManager;
 import net.vulkanmod.vulkan.passes.DefaultMainPass;
 import net.vulkanmod.vulkan.passes.MainPass;
-import net.vulkanmod.vulkan.shader.*;
+import net.vulkanmod.vulkan.shader.GraphicsPipeline;
+import net.vulkanmod.vulkan.shader.Pipeline;
+import net.vulkanmod.vulkan.shader.PipelineState;
+import net.vulkanmod.vulkan.shader.Uniforms;
 import net.vulkanmod.vulkan.shader.layout.PushConstants;
 import net.vulkanmod.vulkan.texture.VTextureSelector;
 import net.vulkanmod.vulkan.util.VUtil;
@@ -27,12 +33,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
-import static net.vulkanmod.vulkan.Vulkan.*;
+import static net.vulkanmod.vulkan.Vulkan.getCommandPool;
+import static net.vulkanmod.vulkan.Vulkan.getSwapChain;
 import static org.lwjgl.system.MemoryStack.stackGet;
 import static org.lwjgl.system.MemoryStack.stackPush;
 import static org.lwjgl.vulkan.EXTDebugUtils.*;
 import static org.lwjgl.vulkan.EXTFullScreenExclusive.VK_ERROR_FULL_SCREEN_EXCLUSIVE_MODE_LOST_EXT;
-import static org.lwjgl.vulkan.KHRSurface.VK_ERROR_SURFACE_LOST_KHR;
 import static org.lwjgl.vulkan.KHRSurface.*;
 import static org.lwjgl.vulkan.KHRSwapchain.*;
 import static org.lwjgl.vulkan.VK10.*;
@@ -44,6 +50,10 @@ public class Renderer {
 
     private static boolean swapCahinUpdate = false;
     public static boolean skipRendering = false;
+    private final int imageNum;
+    private boolean signalled;
+    private ObjectArrayFIFOQueue<imageSet> acquiredImages = new ObjectArrayFIFOQueue<>();
+    private LongArrayFIFOQueue PushSemaphores = new LongArrayFIFOQueue(3);
 
     public static void initRenderer() { INSTANCE = new Renderer(); }
 
@@ -91,6 +101,9 @@ public class Renderer {
         createSyncObjects();
 
         AreaUploadManager.INSTANCE.createLists();
+
+        imageNum = getSwapChain().getImagesNum();
+//        imageIndex = aquireNextImage(stackGet().mallocInt(1));
     }
 
     private void allocateCommandBuffers() {
@@ -121,7 +134,7 @@ public class Renderer {
     }
 
     private void createSyncObjects() {
-        imageAvailableSemaphores = new ArrayList<>(framesNum);
+        imageAvailableSemaphores = new ArrayList<>(3);
         renderFinishedSemaphores = new ArrayList<>(framesNum);
         inFlightFences = new ArrayList<>(framesNum);
 
@@ -138,20 +151,27 @@ public class Renderer {
             LongBuffer pRenderFinishedSemaphore = stack.mallocLong(1);
             LongBuffer pFence = stack.mallocLong(1);
 
+            for(int i = 0;i < 3; i++) {
+                if(vkCreateSemaphore(device, semaphoreInfo, null, pImageAvailableSemaphore) != VK_SUCCESS)
+                {
+                    throw new RuntimeException("Failed to create synchronization objects for the frame " + i);
+                }
+                imageAvailableSemaphores.add(pImageAvailableSemaphore.get(0));
+            }
             for(int i = 0;i < framesNum; i++) {
 
-                if(vkCreateSemaphore(device, semaphoreInfo, null, pImageAvailableSemaphore) != VK_SUCCESS
-                        || vkCreateSemaphore(device, semaphoreInfo, null, pRenderFinishedSemaphore) != VK_SUCCESS
+                if(vkCreateSemaphore(device, semaphoreInfo, null, pRenderFinishedSemaphore) != VK_SUCCESS
                         || vkCreateFence(device, fenceInfo, null, pFence) != VK_SUCCESS) {
 
                     throw new RuntimeException("Failed to create synchronization objects for the frame " + i);
                 }
 
-                imageAvailableSemaphores.add(pImageAvailableSemaphore.get(0));
                 renderFinishedSemaphores.add(pRenderFinishedSemaphore.get(0));
                 inFlightFences.add(pFence.get(0));
 
             }
+
+            imageAvailableSemaphores.forEach(PushSemaphores::enqueue);
 
         }
     }
@@ -197,12 +217,12 @@ public class Renderer {
         resetDescriptors();
 
         currentCmdBuffer = commandBuffers.get(currentFrame);
-        vkResetCommandBuffer(currentCmdBuffer, 0);
+//        vkResetCommandBuffer(currentCmdBuffer, 0);
 
         p.pop();
 
         try(MemoryStack stack = stackPush()) {
-            imageIndex = aquireNextImage(stack.mallocInt(1));
+            /*if(acquiredImages.isEmpty()) */PushNextFrame();
             VkCommandBufferBeginInfo beginInfo = VkCommandBufferBeginInfo.calloc(stack);
             beginInfo.sType(VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO);
             beginInfo.flags(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
@@ -221,7 +241,7 @@ public class Renderer {
     }
 
     public void endFrame() {
-        if(skipRendering)
+        if(skipRendering||acquiredImages.isEmpty())
             return;
 
         mainPass.end(currentCmdBuffer);
@@ -236,7 +256,7 @@ public class Renderer {
 
     //TODO
     public void beginRendering(Framebuffer framebuffer) {
-        if(skipRendering) 
+        if(skipRendering||acquiredImages.isEmpty())
             return;
 
         if(this.boundFramebuffer != framebuffer) {
@@ -286,10 +306,18 @@ public class Renderer {
     }
 
     private void submitFrame() {
-        if(swapCahinUpdate)
+        if(swapCahinUpdate||acquiredImages.isEmpty())
             return;
-
+//        if(acquiredImages.isEmpty()) {
+//            skipRendering=true; return;
+//        }
+        PushNextFrame();
         try(MemoryStack stack = stackPush()) {
+
+
+
+            imageSet imageSet = acquiredImages.last();
+            long x = imageSet.aLong();
 
             int vkResult;
 
@@ -298,7 +326,8 @@ public class Renderer {
             submitInfo.sType(VK_STRUCTURE_TYPE_SUBMIT_INFO);
 
             submitInfo.waitSemaphoreCount(1);
-            submitInfo.pWaitSemaphores(stackGet().longs(imageAvailableSemaphores.get(currentFrame)));
+
+            submitInfo.pWaitSemaphores(stackGet().longs(x));
             submitInfo.pWaitDstStageMask(stack.ints(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT));
 
             submitInfo.pSignalSemaphores(stackGet().longs(renderFinishedSemaphores.get(currentFrame)));
@@ -322,7 +351,7 @@ public class Renderer {
             presentInfo.swapchainCount(1);
             presentInfo.pSwapchains(stack.longs(Vulkan.getSwapChain().getId()));
 
-            presentInfo.pImageIndices(stack.ints(imageIndex));
+            presentInfo.pImageIndices(stackGet().ints(acquiredImages.last().i()));
 
             vkResult = vkQueuePresentKHR(Device.getPresentQueue().queue(), presentInfo);
 
@@ -336,25 +365,57 @@ public class Renderer {
             }
 
             currentFrame = (currentFrame + 1) % framesNum;
+          imageIndex = PopFrame();
 
-
+            signalled=false;
         }
     }
 
-    private int aquireNextImage(IntBuffer pImageIndex) {
-        int vkResult;
-        vkResult= vkAcquireNextImageKHR(device, Vulkan.getSwapChain().getId(), -1,
-                imageAvailableSemaphores.get(currentFrame), VK_NULL_HANDLE, pImageIndex);
+    private int PopFrame() {
+
+        imageSet imageSet = acquiredImages.dequeueLast();
+        PushSemaphores.enqueue(imageSet.aLong());
+        return imageSet.i();
+    }
+
+    public void PushNextFrame() {
+        if(acquiredImages.size()>=imageNum || PushSemaphores.isEmpty()) {
+            //Determine indicies of Unsignalled Sempahores...
+//            Initializer.LOGGER.warn("No Images Available!" + signalled+acquiredImages.size());
+//            if(acquiredImages.isEmpty()) createSyncObjects();
+//            if(signalled) PushSemaphores.enqueue(acquiredImages.last().aLong());
+            return;
+        }
+//        if(signalled) {
+//            Initializer.LOGGER.warn("Signalled!");
+//            return;
+//        }
+
+        long semaphore = getNextPushnextImageAvailableSemaphore();
+        try (MemoryStack stack = stackPush()) {
+            IntBuffer pImageIpImageIndex1 = stack.mallocInt(1);
+
+        int vkResult = vkAcquireNextImageKHR(device, Vulkan.getSwapChain().getId(), 10000,
+                semaphore, VK_NULL_HANDLE, pImageIpImageIndex1);
+        acquiredImages.enqueue(new imageSet(semaphore, pImageIpImageIndex1.get(0)));
 //        imageIndex = pImageIndex.get(0);
-        if(vkResult == VK_ERROR_OUT_OF_DATE_KHR || vkResult == VK_SUBOPTIMAL_KHR || swapCahinUpdate) {
+        if (vkResult == VK_ERROR_OUT_OF_DATE_KHR || vkResult == VK_SUBOPTIMAL_KHR || swapCahinUpdate) {
             swapCahinUpdate = true;
 //                shouldRecreate = false;
 //                recreateSwapChain();
-            return pImageIndex.get(0);
-        } else if(vkResult != VK_SUCCESS) {
-            throw new RuntimeException("Failed to present swap chain image "+vkResult);
+            return;
+        } else if (vkResult != VK_SUCCESS) {
+            throw new RuntimeException("Failed to present swap chain image");
         }
-        return pImageIndex.get(0);
+        signalled = true;
+
+
+        imageIndex = acquiredImages.last().i();
+        }
+    }
+
+    private long getNextPushnextImageAvailableSemaphore() {
+        return PushSemaphores.dequeueLong();
     }
 
     private String decVkErr(int vkResult) {
@@ -391,6 +452,8 @@ public class Renderer {
     }
 
     private void recreateSwapChain() {
+
+         acquiredImages.clear();
 //        for(Long fence : inFlightFences) {
 //            vkWaitForFences(device, fence, true, VUtil.UINT64_MAX);
 //        }
@@ -441,8 +504,11 @@ public class Renderer {
     private void destroySyncObjects() {
         for (int i = 0; i < framesNum; ++i) {
             vkDestroyFence(device, inFlightFences.get(i), null);
-            vkDestroySemaphore(device, imageAvailableSemaphores.get(i), null);
             vkDestroySemaphore(device, renderFinishedSemaphores.get(i), null);
+        }
+        for(int iu = 0; iu< imageNum; iu++)
+        {
+            vkDestroySemaphore(device, imageAvailableSemaphores.get(iu), null);
         }
     }
 
@@ -545,6 +611,7 @@ public class Renderer {
     }
 
     public static void setViewport(int x, int y, int width, int height) {
+        if(skipRendering) return;
         try(MemoryStack stack = stackPush()) {
             VkExtent2D transformedExtent = transformToExtent(VkExtent2D.calloc(stack), width, height);
             VkOffset2D transformedOffset = transformToOffset(VkOffset2D.calloc(stack), x, y, width, height);

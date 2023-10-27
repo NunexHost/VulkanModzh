@@ -154,6 +154,7 @@ public abstract class RenderSystemMixin {
         pollEvents();
         RenderSystem.replayQueue();
         Tesselator.getInstance().getBuilder().clear();
+//        Renderer.getInstance().aquireNextImage();
         pollEvents(); //Actually needed for Pojav + Android
     }
 
