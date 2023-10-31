@@ -83,7 +83,7 @@ public class AreaUploadManager {
     }
     public void submitUploads() {
         if(!this.DistinctBuffers.isEmpty()) extracted1();
-        if (commandBuffers[currentFrame] == null) return;
+        if (this.Submits.isEmpty()) return;
         fenceArray[currentFrame] = TransferQueue.submitCommands2(Submits, fenceArray[currentFrame]);
     }
 
