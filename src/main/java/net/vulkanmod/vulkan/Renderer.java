@@ -222,7 +222,7 @@ public class Renderer {
                 }
             }
             imageIndex = pImageIndex.get(0);
-            presentIndex= (imageIndex+LAG_IN_FRAMES )%imagesNum; //Use the frame that's not currently being presented or rendered to (i.e. true triple Buffering)
+            presentIndex= (imageIndex/*+LAG_IN_FRAMES*/ )%imagesNum; //Use the frame that's not currently being presented or rendered to (i.e. true triple Buffering)
             VkCommandBufferBeginInfo beginInfo = VkCommandBufferBeginInfo.calloc(stack);
             beginInfo.sType(VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO);
             beginInfo.flags(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
