@@ -1,5 +1,7 @@
 package net.vulkanmod.vulkan;
 
+import it.unimi.dsi.fastutil.ints.IntArrayFIFOQueue;
+import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import net.minecraft.client.Minecraft;
@@ -44,16 +46,23 @@ public class Renderer {
 
     private static boolean swapCahinUpdate = false;
     public static boolean skipRendering = false;
+    private int imagesNum;
+    private final IntArrayFIFOQueue presentableImages = new IntArrayFIFOQueue(3);;
 
     public static void initRenderer() { INSTANCE = new Renderer(); }
 
     public static Renderer getInstance() { return INSTANCE; }
 
     public static Drawer getDrawer() { return INSTANCE.drawer; }
-
+    private static final IntArrayList unusedImages = new IntArrayList(3);
+    private static final IntArrayFIFOQueue availableImages = new IntArrayFIFOQueue(3);
+    private static final IntArrayFIFOQueue renderingImages = new IntArrayFIFOQueue(3);
+    private static final IntArrayFIFOQueue presentingImages = new IntArrayFIFOQueue(3);
     public static int getCurrentFrame() { return currentFrame; }
-    public static int getImageIndex() { return imageIndex; }
+    public static int getImageIndex() { return renderingImages.firstInt(); }
+    public static int getPresentIndex() { return presentingImages.firstInt(); }
 
+    Runnable runnable = () -> initPresent();
     private final Set<Pipeline> usedPipelines = new ObjectOpenHashSet<>();
 
     private final Drawer drawer;
@@ -64,11 +73,13 @@ public class Renderer {
     private ArrayList<Long> renderFinishedSemaphores;
     private ArrayList<Long> inFlightFences;
 
+
+
     private Framebuffer boundFramebuffer;
     private RenderPass boundRenderPass;
 
     private static int currentFrame = 0;
-    private static int imageIndex = 0;
+//    private static int imageIndex = 0;
     private VkCommandBuffer currentCmdBuffer;
 
     MainPass mainPass = DefaultMainPass.PASS;
@@ -83,9 +94,15 @@ public class Renderer {
         AreaUploadManager.createInstance();
 
         framesNum = getSwapChain().getFramesNum();
+        imagesNum = getSwapChain().getImagesNum();
 
         drawer = new Drawer();
         drawer.createResources(framesNum);
+
+        for(int i = 0; i < imagesNum; i++)
+        {
+            unusedImages.push(i);
+        }
 
         allocateCommandBuffers();
         createSyncObjects();
@@ -202,7 +219,10 @@ public class Renderer {
         p.pop();
 
         try(MemoryStack stack = stackPush()) {
-            imageIndex = aquireNextImage(stack.mallocInt(1));
+
+            if (aquireNextImage(stack.mallocInt(1))) return;
+
+            renderingImages.enqueue(availableImages.dequeueInt());
             VkCommandBufferBeginInfo beginInfo = VkCommandBufferBeginInfo.calloc(stack);
             beginInfo.sType(VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO);
             beginInfo.flags(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
@@ -220,8 +240,51 @@ public class Renderer {
         }
     }
 
+    private int remImg() {
+        for (int i = 0; i < unusedImages.size(); i++) {
+            if (unusedImages.getInt(i) == availableImages.firstInt()) return unusedImages.removeInt(i);
+        }
+        return 0;
+    }
+
+    private boolean aquireNextImage(IntBuffer pImageIndex) {
+        if (presentingImages.size() > imagesNum) return true;
+        if (renderingImages.size() > framesNum) return true;
+        if (availableImages.size()>imagesNum) {
+            return true;
+        }
+//        if(unusedImages.isEmpty()) return true;
+
+        int vkResult = vkAcquireNextImageKHR(device, Vulkan.getSwapChain().getId(), -1,
+                imageAvailableSemaphores.get(currentFrame), VK_NULL_HANDLE, pImageIndex);
+//        imageIndex = pImageIndex.get(0);
+
+//        if (!presentingImages.isEmpty()) {
+//            int i1 = presentingImages.firstInt();
+//            if (i1 == i) {
+//               unusedImages.add(presentingImages.dequeueInt());
+//            }
+//            if(!renderingImages.isEmpty() && renderingImages.firstInt() == i1)
+//            {
+//                return true;
+//            }
+//        }
+        if(vkResult == VK_ERROR_OUT_OF_DATE_KHR || vkResult == VK_SUBOPTIMAL_KHR || swapCahinUpdate) {
+            swapCahinUpdate = true;
+//                shouldRecreate = false;
+//                recreateSwapChain();
+            return true;
+        }
+        if (vkResult != VK_SUCCESS) {
+            throw new RuntimeException("Failed to present swap chain image " + vkResult);
+        }
+
+        availableImages.enqueue(pImageIndex.get(0));
+        return false;
+    }
+
     public void endFrame() {
-        if(skipRendering)
+        if(skipRendering||renderingImages.isEmpty())
             return;
 
         mainPass.end(currentCmdBuffer);
@@ -252,7 +315,7 @@ public class Renderer {
     }
 
     public void endRendering() {
-        if(skipRendering) 
+        if(skipRendering)
             return;
         
         this.boundRenderPass.endRenderPass(currentCmdBuffer);
@@ -285,8 +348,19 @@ public class Renderer {
         usedPipelines.clear();
     }
 
+    private void initPresent() {
+        //Keep things stack local if possible to avoid Thread sharing overhead
+        int internRenderIndex = 0;
+
+        while (!swapCahinUpdate)
+        {
+
+        }
+    }
+
+
     private void submitFrame() {
-        if(swapCahinUpdate)
+        if(swapCahinUpdate||renderingImages.isEmpty())
             return;
 
         try(MemoryStack stack = stackPush()) {
@@ -314,26 +388,9 @@ public class Renderer {
                 throw new RuntimeException("Failed to submit draw command buffer: " + vkResult);
             }
 
-            VkPresentInfoKHR presentInfo = VkPresentInfoKHR.calloc(stack);
-            presentInfo.sType(VK_STRUCTURE_TYPE_PRESENT_INFO_KHR);
+            presentableImages.enqueue(renderingImages.dequeueInt());
 
-            presentInfo.pWaitSemaphores(stackGet().longs(renderFinishedSemaphores.get(currentFrame)));
-
-            presentInfo.swapchainCount(1);
-            presentInfo.pSwapchains(stack.longs(Vulkan.getSwapChain().getId()));
-
-            presentInfo.pImageIndices(stack.ints(imageIndex));
-
-            vkResult = vkQueuePresentKHR(Device.getPresentQueue().queue(), presentInfo);
-
-            if(vkResult == VK_ERROR_OUT_OF_DATE_KHR || vkResult == VK_SUBOPTIMAL_KHR || swapCahinUpdate) {
-                swapCahinUpdate = true;
-//                shouldRecreate = false;
-//                recreateSwapChain();
-                return;
-            } else if(vkResult != VK_SUCCESS) {
-                throw new RuntimeException("Failed to present swap chain image");
-            }
+            if (flipFrame(stack)) return;
 
             currentFrame = (currentFrame + 1) % framesNum;
 
@@ -341,20 +398,33 @@ public class Renderer {
         }
     }
 
-    private int aquireNextImage(IntBuffer pImageIndex) {
-        int vkResult;
-        vkResult= vkAcquireNextImageKHR(device, Vulkan.getSwapChain().getId(), -1,
-                imageAvailableSemaphores.get(currentFrame), VK_NULL_HANDLE, pImageIndex);
-//        imageIndex = pImageIndex.get(0);
-        if(vkResult == VK_ERROR_OUT_OF_DATE_KHR || vkResult == VK_SUBOPTIMAL_KHR || swapCahinUpdate) {
-            swapCahinUpdate = true;
+    private boolean flipFrame(MemoryStack stack) {
+        if(!presentableImages.isEmpty()) {
+            int vkResult;
+            VkPresentInfoKHR presentInfo = VkPresentInfoKHR.calloc(stack);
+            presentInfo.sType(VK_STRUCTURE_TYPE_PRESENT_INFO_KHR);
+
+            presentInfo.pWaitSemaphores(stack.longs(renderFinishedSemaphores.get(currentFrame)));
+
+            presentInfo.swapchainCount(1);
+            presentInfo.pSwapchains(stack.longs(Vulkan.getSwapChain().getId()));
+//            renderingImages.dequeueInt();
+            int imageIndex1 = presentableImages.dequeueInt();
+            presentInfo.pImageIndices(stack.ints(imageIndex1));
+
+            vkResult = vkQueuePresentKHR(Device.getPresentQueue().queue(), presentInfo);
+//            presentingImages.enqueue(imageIndex1);
+            if (vkResult == VK_ERROR_OUT_OF_DATE_KHR || vkResult == VK_SUBOPTIMAL_KHR || swapCahinUpdate) {
+                swapCahinUpdate = true;
 //                shouldRecreate = false;
 //                recreateSwapChain();
-            return pImageIndex.get(0);
-        } else if(vkResult != VK_SUCCESS) {
-            throw new RuntimeException("Failed to present swap chain image "+vkResult);
+                return true;
+            } else if (vkResult != VK_SUCCESS) {
+                throw new RuntimeException("Failed to present swap chain image");
+            }
+            return false;
         }
-        return pImageIndex.get(0);
+        return true;
     }
 
     private String decVkErr(int vkResult) {
@@ -394,6 +464,9 @@ public class Renderer {
 //        for(Long fence : inFlightFences) {
 //            vkWaitForFences(device, fence, true, VUtil.UINT64_MAX);
 //        }
+        renderingImages.clear();
+        presentingImages.clear(); unusedImages.clear();
+        availableImages.clear();
 
 //        waitForSwapChain();
         Vulkan.waitIdle();
@@ -404,11 +477,18 @@ public class Renderer {
 //            vkDestroySemaphore(device, renderFinishedSemaphores.get(i), null);
 //        }
 
+
+
+
         commandBuffers.forEach(commandBuffer -> vkResetCommandBuffer(commandBuffer, 0));
 
         Vulkan.recreateSwapChain();
 
         int newFramesNum = getSwapChain().getFramesNum();
+        imagesNum = getSwapChain().getImagesNum();
+        for(int i = 0; i < imagesNum; i++) {
+            unusedImages.add(i);
+        }
 
         if(framesNum != newFramesNum) {
             AreaUploadManager.INSTANCE.waitUploads();

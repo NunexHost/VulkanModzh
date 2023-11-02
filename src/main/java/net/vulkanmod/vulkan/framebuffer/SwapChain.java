@@ -362,6 +362,9 @@ public class SwapChain extends Framebuffer {
     public VulkanImage getColorAttachment() {
         return this.swapChainImages.get(Renderer.getImageIndex());
     }
+    public VulkanImage getDisplayedImage() {
+        return this.swapChainImages.get(Renderer.getPresentIndex());
+    }
 
     public long getImageView(int i) { return this.swapChainImages.get(i).getImageView(); }
 
@@ -470,5 +473,5 @@ public class SwapChain extends Framebuffer {
     }
 
     public int getFramesNum() { return Initializer.CONFIG.frameQueueSize; }
-    public int getImagesNum() { return Initializer.CONFIG.minImageCount; }
+    public int getImagesNum() { return this.swapChainImages.size(); }
 }
