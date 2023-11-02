@@ -6,7 +6,6 @@ import com.mojang.blaze3d.vertex.BufferUploader;
 import net.vulkanmod.interfaces.ShaderMixed;
 import net.vulkanmod.vulkan.Renderer;
 import net.vulkanmod.vulkan.shader.GraphicsPipeline;
-import net.vulkanmod.vulkan.shader.Pipeline;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
 
@@ -24,8 +23,8 @@ public class BufferUploaderM {
      */
     @Overwrite
     public static void drawWithShader(BufferBuilder.RenderedBuffer buffer) {
-        RenderSystem.assertOnRenderThread();
         buffer.release();
+        if(Renderer.noImages()) return;
 
         BufferBuilder.DrawState parameters = buffer.drawState();
 
@@ -33,7 +32,7 @@ public class BufferUploaderM {
 
         if(parameters.vertexCount() <= 0)
             return;
-
+        if(renderer.getBoundRenderPass() ==null) return;
         GraphicsPipeline pipeline = ((ShaderMixed)(RenderSystem.getShader())).getPipeline();
         renderer.bindGraphicsPipeline(pipeline);
         renderer.uploadAndBindUBOs(pipeline);

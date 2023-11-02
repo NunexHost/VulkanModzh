@@ -18,7 +18,7 @@ project.ext.macosNatives = "natives-macos"
 project.ext.macosArmNatives = "natives-macos-arm64"
 
 dependencies {
-	include(implementation("com.github.oshi:oshi-core:6.4.7-SNAPSHOT"))
+	include(implementation("com.github.oshi:oshi-core:6.4.8-SNAPSHOT"))
 	include(implementation("org.lwjgl:lwjgl-vulkan:$lwjglVersion"))
 
 	include(implementation("org.lwjgl:lwjgl-vma:$lwjglVersion"))
