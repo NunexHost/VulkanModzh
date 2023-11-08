@@ -107,7 +107,7 @@ public class Renderer {
         allocateCommandBuffers();
         createSyncObjects();
 
-        AreaUploadManager.INSTANCE.createLists();
+        AreaUploadManager.INSTANCE.init();
     }
 
     private void allocateCommandBuffers() {
@@ -175,6 +175,7 @@ public class Renderer {
 
     public void beginFrame() {
         Profiler2 p = Profiler2.getMainProfiler();
+        p.pop();
         p.push("Frame_fence");
 
         if(swapCahinUpdate) {
@@ -199,9 +200,9 @@ public class Renderer {
 
         p.pop();
         p.start();
-        p.push("Frame_ops");
+        p.push("Begin_rendering");
 
-        AreaUploadManager.INSTANCE.updateFrame();
+//        AreaUploadManager.INSTANCE.updateFrame();
 
         MemoryManager.getInstance().initFrame(currentFrame);
         drawer.setCurrentFrame(currentFrame);
@@ -215,8 +216,6 @@ public class Renderer {
 
         currentCmdBuffer = commandBuffers.get(currentFrame);
         vkResetCommandBuffer(currentCmdBuffer, 0);
-
-        p.pop();
 
         try(MemoryStack stack = stackPush()) {
 
@@ -238,6 +237,8 @@ public class Renderer {
 
             vkCmdSetDepthBias(commandBuffer, 0.0F, 0.0F, 0.0F);
         }
+
+        p.pop();
     }
 
     private int remImg() {
@@ -287,9 +288,14 @@ public class Renderer {
         if(skipRendering||renderingImages.isEmpty())
             return;
 
+        Profiler2 p = Profiler2.getMainProfiler();
+        p.push("End_rendering");
+
         mainPass.end(currentCmdBuffer);
 
         submitFrame();
+
+        p.pop();
     }
 
     public void endRenderPass() {
@@ -329,8 +335,12 @@ public class Renderer {
     }
 
     public void resetBuffers() {
+        Profiler2 p = Profiler2.getMainProfiler();
+        p.push("Frame_ops");
+
         drawer.resetBuffers(currentFrame);
 
+        AreaUploadManager.INSTANCE.updateFrame();
         Vulkan.getStagingBuffer(currentFrame).reset();
     }
 
@@ -484,6 +494,9 @@ public class Renderer {
 
         Vulkan.recreateSwapChain();
 
+        //Semaphores need to be recreated in order to make them unsignaled
+        destroySyncObjects();
+
         int newFramesNum = getSwapChain().getFramesNum();
         imagesNum = getSwapChain().getImagesNum();
         for(int i = 0; i < imagesNum; i++) {
@@ -492,17 +505,17 @@ public class Renderer {
 
         if(framesNum != newFramesNum) {
             AreaUploadManager.INSTANCE.waitUploads();
-            destroySyncObjects();
+
 
             framesNum = newFramesNum;
-            createSyncObjects();
             allocateCommandBuffers();
 
             Pipeline.recreateDescriptorSets(framesNum);
 
             drawer.createResources(framesNum);
-            AreaUploadManager.INSTANCE.createLists();
         }
+
+        createSyncObjects();
 
         this.onResizeCallbacks.forEach(Runnable::run);
 

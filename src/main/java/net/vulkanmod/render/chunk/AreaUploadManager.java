@@ -13,6 +13,7 @@ import org.apache.commons.lang3.Validate;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.VkBufferCopy;
 import org.lwjgl.vulkan.VkFenceCreateInfo;
+import org.lwjgl.vulkan.VkMemoryBarrier;
 
 import java.nio.LongBuffer;
 
@@ -41,8 +42,7 @@ public class AreaUploadManager {
 
     int currentFrame;
 
-    public void createLists() {
-
+    public void init() {
         this.commandBuffers = new CommandPool.CommandBuffer[FRAME_NUM];
 //        this.recordedUploads = new ObjectArrayList[FRAME_NUM];
         this.updatedParameters = new ObjectArrayList[FRAME_NUM];
@@ -147,23 +147,25 @@ public class AreaUploadManager {
 //        return aTst;
     }
 
-    public void enqueueParameterUpdate(DrawBuffers.ParametersUpdate parametersUpdate) {
-        this.updatedParameters[this.currentFrame].add(parametersUpdate);
-    }
+//        if(!dstBuffers.add(bufferId)) {
+//            try (MemoryStack stack = MemoryStack.stackPush()) {
+//                VkMemoryBarrier.Buffer barrier = VkMemoryBarrier.calloc(1, stack);
+//                barrier.sType$Default();
+//                barrier.srcAccessMask(VK_ACCESS_TRANSFER_WRITE_BIT);
+//                barrier.dstAccessMask(VK_ACCESS_TRANSFER_WRITE_BIT);
+//
+//                vkCmdPipelineBarrier(commandBuffer,
+//                        VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+//                        0,
+//                        barrier,
+//                        null,
+//                        null);
+//            }
+//
+//
+//            dstBuffers.clear();
+//        }
 
-    public void enqueueFrameOp(Runnable runnable) {
-        this.frameOps[this.currentFrame].add(runnable);
-    }
-
-    public void copy(Buffer src, Buffer dst) {
-        if(dst.getBufferSize() < src.getBufferSize()) {
-            throw new IllegalArgumentException("dst buffer is smaller than src buffer.");
-        }
-
-        CommandPool.CommandBuffer commandBuffer = TransferQueue.beginCommands();
-        TransferQueue.uploadBufferCmd(commandBuffer, src.getId(), 0, dst.getId(), 0, src.getBufferSize());
-        Submits.add(0, commandBuffer);
-    }
 
     public void copyImmediate(Buffer src, Buffer dst) {
         if(dst.getBufferSize() < src.getBufferSize()) {
@@ -178,21 +180,9 @@ public class AreaUploadManager {
     public void updateFrame() {
         waitUploads(this.currentFrame);
         this.currentFrame ^= this.currentFrame;
-        executeFrameOps(this.currentFrame);
+//        executeFrameOps(this.currentFrame);
     }
 
-    private void executeFrameOps(int frame) {
-        for(DrawBuffers.ParametersUpdate parametersUpdate : this.updatedParameters[frame]) {
-            parametersUpdate.setDrawParameters();
-        }
-
-        for(Runnable runnable : this.frameOps[frame]) {
-            runnable.run();
-        }
-
-        this.updatedParameters[frame].clear();
-        this.frameOps[frame].clear();
-    }
 
     public void waitUploads() {
         this.waitUploads(currentFrame);

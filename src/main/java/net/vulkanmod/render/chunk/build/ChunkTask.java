@@ -22,10 +22,10 @@ import net.minecraft.world.phys.Vec3;
 import net.vulkanmod.Initializer;
 import net.vulkanmod.interfaces.VisibilitySetExtended;
 import net.vulkanmod.render.chunk.RenderSection;
+import net.vulkanmod.render.chunk.TerrainShaderManager;
 import net.vulkanmod.render.chunk.WorldRenderer;
 import net.vulkanmod.render.vertex.TerrainBufferBuilder;
 import net.vulkanmod.render.vertex.TerrainRenderType;
-import net.vulkanmod.render.chunk.TerrainShaderManager;
 
 import javax.annotation.Nullable;
 import java.util.*;
@@ -35,13 +35,16 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static net.vulkanmod.render.vertex.TerrainRenderType.*;
 
-public class ChunkTask {
+public abstract class ChunkTask {
     private static TaskDispatcher taskDispatcher;
 
-    //TODO stats
     public static final boolean bench = false;
     public static AtomicInteger totalBuildTime = new AtomicInteger(0);
     public static AtomicInteger buildCount = new AtomicInteger(0);
+
+    public static BuildTask createBuildTask(RenderSection renderSection, RenderChunkRegion renderChunkRegion, boolean highPriority) {
+        return new BuildTask(renderSection, renderChunkRegion, highPriority);
+    }
 
     protected AtomicBoolean cancelled = new AtomicBoolean(false);
     protected final RenderSection renderSection;
@@ -51,13 +54,9 @@ public class ChunkTask {
         this.renderSection = renderSection;
     }
 
-    public String name() {
-        return "generic_chk_task";
-    }
+    public abstract String name();
 
-    public CompletableFuture<Result> doTask(ThreadBuilderPack builderPack) {
-        return null;
-    }
+    public abstract CompletableFuture<Result> doTask(ThreadBuilderPack builderPack);
 
     public void cancel() {
         this.cancelled.set(true);
@@ -119,9 +118,8 @@ public class ChunkTask {
                     compiledChunk.renderableBlockEntities.addAll(compileResults.blockEntities);
                     compiledChunk.transparencyState = compileResults.transparencyState;
 
-                    if(!compileResults.renderedLayers.isEmpty()) {
+                    if(!compileResults.renderedLayers.isEmpty())
                         compiledChunk.isCompletelyEmpty = false;
-                    }
 
                     taskDispatcher.scheduleSectionUpdate(renderSection, compileResults.renderedLayers);
                     compiledChunk.renderTypes.addAll(compileResults.renderedLayers.keySet());
@@ -162,7 +160,7 @@ public class ChunkTask {
                     }
 
                     if (blockState.hasBlockEntity()) {
-                        BlockEntity blockEntity = renderChunkRegion.getBlockEntity(blockPos3);
+                        BlockEntity blockEntity = renderChunkRegion.getBlockEntity(blockPos);
                         if (blockEntity != null) {
                             this.handleBlockEntity(compileResults, blockEntity);
                         }
@@ -183,7 +181,9 @@ public class ChunkTask {
                             bufferBuilder.begin(VertexFormat.Mode.QUADS, TerrainShaderManager.TERRAIN_VERTEX_FORMAT);
                         }
 
-                        blockRenderDispatcher.renderLiquid(blockPos3, renderChunkRegion, bufferBuilder, blockState2, fluidState);
+                        bufferBuilder.setBlockAttributes(fluidState.createLegacyBlock());
+
+                        blockRenderDispatcher.renderLiquid(blockPos, renderChunkRegion, bufferBuilder, blockState, fluidState);
                     }
 
                     if (blockState.getRenderShape() != RenderShape.INVISIBLE) {
@@ -197,9 +197,11 @@ public class ChunkTask {
                             bufferBuilder.begin(VertexFormat.Mode.QUADS, TerrainShaderManager.TERRAIN_VERTEX_FORMAT);
                         }
 
+                        bufferBuilder.setBlockAttributes(blockState);
+
                         poseStack.pushPose();
-                        poseStack.translate(blockPos3.getX() & 15, blockPos3.getY() & 15, blockPos3.getZ() & 15);
-                        blockRenderDispatcher.renderBatched(blockState, blockPos3, renderChunkRegion, poseStack, bufferBuilder, true, randomSource);
+                        poseStack.translate(blockPos.getX() & 15, blockPos.getY() & 15, blockPos.getZ() & 15);
+                        blockRenderDispatcher.renderBatched(blockState, blockPos, renderChunkRegion, poseStack, bufferBuilder, true, randomSource);
                         poseStack.popPose();
                     }
                 }
@@ -312,6 +314,5 @@ public class ChunkTask {
     public enum Result {
         CANCELLED,
         SUCCESSFUL;
-
     }
 }
