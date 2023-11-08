@@ -97,11 +97,11 @@ public class VBO {
 
     public void drawWithShader(Matrix4f MV, Matrix4f P, ShaderInstance shader) {
         if (this.indexCount != 0) {
-//            RenderSystem.assertOnRenderThread();
-//
-//            RenderSystem.setShader(() -> shader);
-//
-//            drawWithShader(MV, P, ((ShaderMixed)shader).getPipeline());
+            RenderSystem.assertOnRenderThread();
+
+            RenderSystem.setShader(() -> shader);
+
+            drawWithShader(MV, P, ((ShaderMixed)shader).getPipeline());
 
         }
     }
