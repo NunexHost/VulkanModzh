@@ -173,7 +173,7 @@ public class AreaUploadManager {
         }
 
         CommandPool.CommandBuffer commandBuffer = TransferQueue.beginCommands();
-        TransferQueue.uploadBufferCmd(commandBuffer, src.getId(), 0, dst.getId(), 0, src.getBufferSize());
+        TransferQueue.uploadBufferCmd(commandBuffer.getHandle(), src.getId(), 0, dst.getId(), 0, src.getBufferSize());
         Synchronization.waitFence(TransferQueue.submitCommands(commandBuffer));
     }
 
