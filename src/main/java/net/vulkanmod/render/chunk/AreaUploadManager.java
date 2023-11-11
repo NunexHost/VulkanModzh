@@ -3,24 +3,20 @@ package net.vulkanmod.render.chunk;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import net.vulkanmod.render.VirtualBuffer;
-import net.vulkanmod.vulkan.*;
+import net.vulkanmod.vulkan.Device;
+import net.vulkanmod.vulkan.Synchronization;
+import net.vulkanmod.vulkan.Vulkan;
 import net.vulkanmod.vulkan.memory.StagingBuffer;
 import net.vulkanmod.vulkan.queue.CommandPool;
-import org.apache.commons.lang3.Validate;
-
-import static net.vulkanmod.render.chunk.DrawBuffers.tVirtualBufferIdx;
-import static net.vulkanmod.vulkan.queue.Queue.TransferQueue;
-
 import net.vulkanmod.vulkan.queue.Queue;
-import net.vulkanmod.vulkan.queue.TransferQueue;
+import org.apache.commons.lang3.Validate;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.VkCommandBuffer;
 import org.lwjgl.vulkan.VkMemoryBarrier;
 
-import java.nio.ByteBuffer;
-
+import static net.vulkanmod.render.chunk.DrawBuffers.tVirtualBufferIdx;
+import static net.vulkanmod.vulkan.queue.Queue.TransferQueue;
 import static org.lwjgl.vulkan.VK10.*;
-import static org.lwjgl.vulkan.VK10.VK_PIPELINE_STAGE_TRANSFER_BIT;
 
 
 public class AreaUploadManager {

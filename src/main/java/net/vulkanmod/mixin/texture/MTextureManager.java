@@ -39,7 +39,7 @@ public abstract class MTextureManager {
             tickable.tick();
         }
         if(SpriteUtil.shouldUpload()) {
-            SpriteUtil.transitionLayouts(Device.getTransferQueue().getCommandBuffer());
+            SpriteUtil.transitionLayouts(Device.getTransferQueue().getCommandBuffer().getHandle());
             Device.getTransferQueue().endRecordingAndSubmit();
 //            Synchronization.INSTANCE.waitFences();
         }

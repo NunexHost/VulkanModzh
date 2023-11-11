@@ -50,6 +50,9 @@ public class ChunkTask {
     ChunkTask(RenderSection renderSection) {
         this.renderSection = renderSection;
     }
+    public static BuildTask createBuildTask(RenderSection renderSection, RenderChunkRegion renderChunkRegion, boolean highPriority) {
+        return new BuildTask(renderSection, renderChunkRegion, highPriority);
+    }
 
     public String name() {
         return "generic_chk_task";
