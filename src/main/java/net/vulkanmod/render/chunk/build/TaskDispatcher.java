@@ -131,6 +131,7 @@ public class TaskDispatcher {
             runnable.run();
         }
 
+        AreaUploadManager.INSTANCE.extracted();
         AreaUploadManager.INSTANCE.submitUploads();
 
         return flag;
@@ -150,7 +151,7 @@ public class TaskDispatcher {
             UploadBuffer uploadBuffer = uploadBuffers.get(renderType);
 
             if(uploadBuffer != null) {
-                drawBuffers.upload(section.xOffset(), section.yOffset(), section.zOffset(), uploadBuffer, section.getDrawParameters(renderType));
+                drawBuffers.upload(section.xOffset(), section.yOffset(), section.zOffset(), uploadBuffer, section.getDrawParameters(renderType), renderType);
             } else {
                 section.getDrawParameters(renderType).reset(renderArea);
             }
@@ -167,7 +168,7 @@ public class TaskDispatcher {
         ChunkArea renderArea = section.getChunkArea();
         DrawBuffers drawBuffers = renderArea.getDrawBuffers();
 
-        drawBuffers.upload(section.xOffset(), section.yOffset(), section.zOffset(), uploadBuffer, section.getDrawParameters(renderType));
+        drawBuffers.upload(section.xOffset(), section.yOffset(), section.zOffset(), uploadBuffer, section.getDrawParameters(renderType), renderType);
     }
 
     public int getIdleThreadsCount() {

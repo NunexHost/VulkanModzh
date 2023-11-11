@@ -119,24 +119,24 @@ public class QueueFamilyIndices {
     }
 
 
-    public static int graphicsFamily, presentFamily, transferFamily, computeFamily = VK_QUEUE_FAMILY_IGNORED;
+        public static int graphicsFamily, presentFamily, transferFamily, computeFamily = VK_QUEUE_FAMILY_IGNORED;
 
-    public static boolean hasDedicatedTransferQueue = false;
+        public static boolean hasDedicatedTransferQueue = false;
 
-    public static boolean isComplete() {
-        return graphicsFamily != VK_QUEUE_FAMILY_IGNORED && presentFamily != VK_QUEUE_FAMILY_IGNORED && transferFamily != VK_QUEUE_FAMILY_IGNORED && computeFamily != VK_QUEUE_FAMILY_IGNORED;
-    }
+        public static boolean isComplete() {
+            return graphicsFamily != VK_QUEUE_FAMILY_IGNORED && presentFamily != VK_QUEUE_FAMILY_IGNORED && transferFamily != VK_QUEUE_FAMILY_IGNORED && computeFamily != VK_QUEUE_FAMILY_IGNORED;
+        }
 
-    public static boolean isSuitable() {
-        return graphicsFamily != VK_QUEUE_FAMILY_IGNORED && presentFamily != VK_QUEUE_FAMILY_IGNORED;
-    }
+        public static boolean isSuitable() {
+            return graphicsFamily != VK_QUEUE_FAMILY_IGNORED && presentFamily != VK_QUEUE_FAMILY_IGNORED;
+        }
 
-    public static int[] unique() {
-        return IntStream.of(graphicsFamily, presentFamily, transferFamily, computeFamily).distinct().toArray();
-    }
+        public static int[] unique() {
+            return IntStream.of(graphicsFamily, presentFamily, transferFamily, computeFamily).distinct().toArray();
+        }
 
-    public static int[] array() {
-        return new int[]{graphicsFamily, presentFamily};
-    }
+        public static int[] array() {
+            return new int[]{graphicsFamily, presentFamily};
+        }
 
 }

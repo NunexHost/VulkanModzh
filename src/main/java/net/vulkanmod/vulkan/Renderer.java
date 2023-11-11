@@ -200,7 +200,7 @@ public class Renderer {
         resetDescriptors();
 
         currentCmdBuffer = commandBuffers.get(currentFrame);
-        vkResetCommandBuffer(currentCmdBuffer, 0);
+//        vkResetCommandBuffer(currentCmdBuffer, 0);
 
         try(MemoryStack stack = stackPush()) {
 
@@ -391,7 +391,7 @@ public class Renderer {
     private void recreateSwapChain() {
         Vulkan.waitIdle();
 
-        commandBuffers.forEach(commandBuffer -> vkResetCommandBuffer(commandBuffer, 0));
+//        commandBuffers.forEach(commandBuffer -> vkResetCommandBuffer(commandBuffer, 0));
 
         Vulkan.recreateSwapChain();
 
@@ -402,7 +402,7 @@ public class Renderer {
         imagesNum = getSwapChain().getFramesNum();
 
         if(framesNum != newFramesNum) {
-            AreaUploadManager.INSTANCE.waitAllUploads();
+            AreaUploadManager.INSTANCE.waitUploads();
 
             framesNum = newFramesNum;
             allocateCommandBuffers();

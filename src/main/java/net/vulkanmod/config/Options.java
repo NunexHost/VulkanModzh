@@ -6,16 +6,37 @@ import net.minecraft.network.chat.Component;
 import net.vulkanmod.Initializer;
 import net.vulkanmod.vulkan.Device;
 import net.vulkanmod.vulkan.Renderer;
+import net.vulkanmod.vulkan.Vulkan;
 import org.lwjgl.system.MemoryStack;
 
 import static net.vulkanmod.vulkan.Device.device;
 
 public class Options {
+
+    //Fix Glitches+Crashes if Wayland and the Mesa RADV driver are used, and Queue Frames is set above 2 (possible RADV Bug?)
+    private static final boolean limitSwapChain = VideoResolution.isWayLand() && Vulkan.getDeviceInfo().isAMD();
     static net.minecraft.client.Options minecraftOptions = Minecraft.getInstance().options;
     static Config config = Initializer.CONFIG;
     static Window window = Minecraft.getInstance().getWindow();
     public static boolean fullscreenDirty = false;
 
+    private static final int minImages;
+
+    private static final int maxImages;
+
+
+    static
+    {
+        try(MemoryStack stack = MemoryStack.stackPush())
+        {
+            Device.SurfaceProperties surfaceProperties = Device.querySurfaceProperties(device.getPhysicalDevice(), stack);
+            minImages = surfaceProperties.capabilities.minImageCount();
+            int maxImageCount = surfaceProperties.capabilities.maxImageCount();
+
+            boolean hasInfiniteSwapChain = maxImageCount == 0; //Applicable if Mesa/RADV Driver are present
+            maxImages = hasInfiniteSwapChain ? 64 : Math.min(maxImageCount, 32);
+        }
+    }
 
 
     public static Option<?>[] getVideoOpts() {
@@ -148,15 +169,12 @@ public class Options {
                         particlesMode -> Component.translatable(particlesMode.getKey()),
                         value -> minecraftOptions.particles().set(value),
                         () -> minecraftOptions.particles().get()),
-                new SwitchOption("Unique opaque layer",
+                new SwitchOption("Render Sky",
                         value -> {
-                            config.uniqueOpaqueLayer = value;
+                            config.renderSky = value;
                             Minecraft.getInstance().levelRenderer.allChanged();
                         },
-                        () -> config.uniqueOpaqueLayer)
-                        .setTooltip(Component.nullToEmpty("""
-                        Improves performance by using a unique render layer for opaque terrain rendering.
-                        It changes distant grass aspect and may cause unexpected texture behaviour""")),
+                        () -> config.renderSky),
                 new CyclingOption<>("Mipmap Levels",
                         new Integer[]{0, 1, 2, 3, 4},
                         value -> Component.nullToEmpty(value.toString()),
@@ -171,12 +189,25 @@ public class Options {
     public static Option<?>[] getOtherOpts() {
         return new Option[] {
                 new RangeOption("Queue Frames", 1,
-                        5, 1,
+                        8, 1,
                         value -> {
                             config.frameQueueSize = value;
                             Renderer.scheduleSwapChainUpdate();
                         }, () -> config.frameQueueSize)
-                        .setTooltip(Component.nullToEmpty("")),
+                        .setTooltip(Component.nullToEmpty("""
+                        Manages the tradeoff between FPS and input lag
+                        Higher = improved FPS but more input lag
+                        Lower = decreased FPS but less input lag""")),
+                new RangeOption("Image Count", minImages,
+                        maxImages, 1,
+                        value -> {
+                            config.minImageCount = value;
+                            Renderer.scheduleSwapChainUpdate();
+                        }, () -> config.minImageCount)
+                        .setTooltip(Component.nullToEmpty("""
+                        Sets the number of Swapchain images
+                        Higher values can boost GPU performance
+                        But at the cost of increased input lag""")),
                 new SwitchOption("Gui Optimizations",
                         value -> config.guiOptimizations = value,
                         () -> config.guiOptimizations)
@@ -212,7 +243,19 @@ public class Options {
                         () -> config.indirectDraw)
                         .setTooltip(Component.nullToEmpty("""
                         Reduces CPU overhead but increases GPU overhead.
-                        Enabling it might help in CPU limited systems."""))
+                        Enabling it might help in CPU limited systems.""")),
+                new SwitchOption("Vertex fetch Fix",
+                        value -> config.vertexFetchFix = value,
+                        () -> config.vertexFetchFix)
+                        .setTooltip(Component.nullToEmpty("""
+                        WILL REDUCE FPS ON MOST GPUS:
+                        NOT RECOMMENDED FOR MOST SYSTEMS!
+                        (Applies only when Indirect is disabled)
+                        Boosts FPS on specific GPUs when enabled
+                        But is enormously CPU intensive
+                        Only intended for very specific GPUs
+                        (e.g. Old Nvidia cards such as GTX 1000)
+                        (Will cause FPS drops on most other GPUs)"""))
         };
 
     }

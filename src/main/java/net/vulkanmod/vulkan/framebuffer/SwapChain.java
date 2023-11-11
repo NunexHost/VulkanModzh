@@ -6,9 +6,10 @@ import net.vulkanmod.vulkan.Device;
 import net.vulkanmod.vulkan.Renderer;
 import net.vulkanmod.vulkan.Synchronization;
 import net.vulkanmod.vulkan.Vulkan;
-import net.vulkanmod.vulkan.queue.Queue;
+import net.vulkanmod.config.VideoResolution;
 import net.vulkanmod.vulkan.queue.QueueFamilyIndices;
 import net.vulkanmod.vulkan.texture.VulkanImage;
+import org.joml.Matrix4f;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.*;
 
@@ -30,23 +31,25 @@ import static org.lwjgl.vulkan.VK10.*;
 
 public class SwapChain extends Framebuffer {
     private static int DEFAULT_DEPTH_FORMAT = 0;
-    private static final int DEFAULT_IMAGE_COUNT = 3;
 
     public static int getDefaultDepthFormat() {
         return DEFAULT_DEPTH_FORMAT;
     }
 
-    //Necessary until tearing-control-unstable-v1 is fully implemented on all GPU Drivers for Wayland
-    //(As Immediate Mode (and by extension Screen tearing) doesn't exist on most Wayland installations currently)
-    //Try to use Mailbox if possible (in case FreeSync/G-Sync needs it)
-    private static final int defUncappedMode = checkPresentMode(VK_PRESENT_MODE_MAILBOX_KHR, VK_PRESENT_MODE_IMMEDIATE_KHR);
-
     private RenderPass renderPass;
-    private long[] framebuffers;
 
+    //Necessary until tearing-control-unstable-v1 is fully implemented on all GPU Drivers for Wayland
+    private static final int defUncappedMode = VideoResolution.isWayLand() || VideoResolution.isAndroid() ? checkPresentMode(VK_PRESENT_MODE_MAILBOX_KHR, VK_PRESENT_MODE_IMMEDIATE_KHR) : VK_PRESENT_MODE_IMMEDIATE_KHR;
+    private long[] framebuffers;
     private long swapChain = VK_NULL_HANDLE;
     private List<VulkanImage> swapChainImages;
     private VkExtent2D extent2D;
+    // A matrix that describes the transformations that should be applied
+    // to the output of the game.
+    private Matrix4f pretransformMatrix = new Matrix4f();
+    // The pretransform flags that were given to the swapchain,
+    // masked (see "setupPreRotation(VkExtent2D, VkSurfaceCapabilitiesKHR)")
+    private int pretransformFlags;
     public boolean isBGRAformat;
     private boolean vsync = false;
 
@@ -60,6 +63,18 @@ public class SwapChain extends Framebuffer {
         this.depthFormat = DEFAULT_DEPTH_FORMAT;
         createSwapChain();
 
+    }
+
+    public static int checkPresentMode(int requestedMode, int fallback) {
+        try(MemoryStack stack = MemoryStack.stackPush()) {
+            IntBuffer surfaceProperties = Device.querySurfaceProperties(device.getPhysicalDevice(), stack).presentModes;
+            for (int i = 0; i < surfaceProperties.capacity(); i++) {
+                if (surfaceProperties.get(i) == requestedMode) {
+                    return requestedMode;
+                }
+            }
+            return fallback;
+        }
     }
 
     public int recreateSwapChain() {
@@ -90,6 +105,7 @@ public class SwapChain extends Framebuffer {
             VkSurfaceFormatKHR surfaceFormat = getFormat(surfaceProperties.formats);
             int presentMode = getPresentMode(surfaceProperties.presentModes);
             VkExtent2D extent = getExtent(surfaceProperties.capabilities);
+            setupPreRotation(extent, surfaceProperties.capabilities);
 
             if(extent.width() == 0 && extent.height() == 0) {
                 if(swapChain != VK_NULL_HANDLE) {
@@ -102,9 +118,11 @@ public class SwapChain extends Framebuffer {
                 this.height = 0;
                 return;
             }
-            //minImageCount depends on driver: Mesa/RADV needs a min of 4, but most other drivers are at least 2 or 3
 
-            int requestedFrames = Math.max(DEFAULT_IMAGE_COUNT, surfaceProperties.capabilities.minImageCount());
+            if(Initializer.CONFIG.minImageCount < surfaceProperties.capabilities.minImageCount())
+                Initializer.CONFIG.minImageCount = surfaceProperties.capabilities.minImageCount();
+
+            int requestedFrames = Initializer.CONFIG.minImageCount;
 
             IntBuffer imageCount = stack.ints(requestedFrames);
 //            IntBuffer imageCount = stack.ints(Math.max(surfaceProperties.capabilities.minImageCount(), preferredImageCount));
@@ -118,7 +136,7 @@ public class SwapChain extends Framebuffer {
             this.format = surfaceFormat.format();
             this.extent2D = VkExtent2D.create().set(extent);
 
-            createInfo.minImageCount(requestedFrames);
+            createInfo.minImageCount(imageCount.get(0));
             createInfo.imageFormat(this.format);
             createInfo.imageColorSpace(surfaceFormat.colorSpace());
             createInfo.imageExtent(extent);
@@ -160,10 +178,6 @@ public class SwapChain extends Framebuffer {
 
             swapChainImages = new ArrayList<>(imageCount.get(0));
 
-            // minImageCount and Actual Image Count can differ with some Drivers,
-            // According to the spec, minImageCount is only the guaranteed min, not the actual image count
-            Initializer.LOGGER.info("Requested Images: "+requestedFrames + " -> Actual Image Count: "+imageCount.get(0));
-
             this.width = extent2D.width();
             this.height = extent2D.height();
 
@@ -173,6 +187,9 @@ public class SwapChain extends Framebuffer {
 
                 swapChainImages.add(new VulkanImage(imageId, this.format, 1, this.width, this.height, 4, 0, imageView));
             }
+
+            Initializer.LOGGER.info("Requested Images: "+requestedFrames + "-> Actual Images: "+swapChainImages.size());
+
             currentLayout = new int[this.swapChainImages.size()];
 
             createDepthResources();
@@ -240,14 +257,14 @@ public class SwapChain extends Framebuffer {
         Renderer.getInstance().setBoundFramebuffer(this);
     }
 
-    public void colorAttachmentLayout(MemoryStack stack, VkCommandBuffer commandBuffer, int frame) {
+    public void colorAttachmentLayout(MemoryStack stack, VkCommandBuffer commandBuffer, int imageIndex) {
             VkImageMemoryBarrier.Buffer barrier = VkImageMemoryBarrier.callocStack(1, stack);
             barrier.sType(VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER);
             barrier.dstAccessMask(VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT);
-            barrier.oldLayout(this.currentLayout[frame]);
+            barrier.oldLayout(this.currentLayout[imageIndex]);
 //            barrier.oldLayout(VK_IMAGE_LAYOUT_UNDEFINED);
             barrier.newLayout(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-            barrier.image(this.swapChainImages.get(frame).getId());
+            barrier.image(this.swapChainImages.get(imageIndex).getId());
 //            barrier.srcQueueFamilyIndex(VK_QUEUE_FAMILY_IGNORED);
 
             barrier.subresourceRange().baseMipLevel(0);
@@ -266,10 +283,10 @@ public class SwapChain extends Framebuffer {
                     barrier// pImageMemoryBarriers
             );
 
-            this.currentLayout[frame] = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+            this.currentLayout[imageIndex] = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     }
 
-    public void presentLayout(MemoryStack stack, VkCommandBuffer commandBuffer, int frame) {
+    public void presentLayout(MemoryStack stack, VkCommandBuffer commandBuffer, int imageIndex) {
 
         VkImageMemoryBarrier.Buffer barrier = VkImageMemoryBarrier.calloc(1, stack);
         barrier.sType(VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER);
@@ -277,7 +294,7 @@ public class SwapChain extends Framebuffer {
         barrier.dstAccessMask(0);
         barrier.oldLayout(VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
         barrier.newLayout(VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
-        barrier.image(this.swapChainImages.get(frame).getId());
+        barrier.image(this.swapChainImages.get(imageIndex).getId());
 
         barrier.subresourceRange().baseMipLevel(0);
         barrier.subresourceRange().levelCount(1);
@@ -295,7 +312,7 @@ public class SwapChain extends Framebuffer {
                 barrier// pImageMemoryBarriers
         );
 
-        this.currentLayout[frame] = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        this.currentLayout[imageIndex] = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
     }
 
     public void cleanUp() {
@@ -335,7 +352,18 @@ public class SwapChain extends Framebuffer {
         return extent2D;
     }
 
+    public Matrix4f getPretransformMatrix(){
+        return pretransformMatrix;
+    }
+
+    public int getPretransformFlags() {
+        return pretransformFlags;
+    }
+
     public VulkanImage getColorAttachment() {
+        return this.swapChainImages.get(Renderer.getCurrentImage());
+    }
+    public VulkanImage getDisplayedImage() {
         return this.swapChainImages.get(Renderer.getCurrentImage());
     }
 
@@ -401,18 +429,35 @@ public class SwapChain extends Framebuffer {
         return actualExtent;
     }
 
-    private static int checkPresentMode(int... requestedModes) {
-        try(MemoryStack stack = MemoryStack.stackPush())
-        {
-            var a = Device.querySurfaceProperties(device.getPhysicalDevice(), stack).presentModes;
-            for(int dMode : requestedModes) {
-                for (int i = 0; i < a.capacity(); i++) {
-                    if (a.get(i) == dMode) {
-                        return dMode;
-                    }
-                }
+    private void setupPreRotation(VkExtent2D extent, VkSurfaceCapabilitiesKHR surfaceCapabilities) {
+        // Mask off anything else that does not interest us in the transform
+        pretransformFlags = surfaceCapabilities.currentTransform() &
+                (VK_SURFACE_TRANSFORM_ROTATE_90_BIT_KHR |
+                VK_SURFACE_TRANSFORM_ROTATE_180_BIT_KHR |
+                VK_SURFACE_TRANSFORM_ROTATE_270_BIT_KHR);
+        int rotateDegrees = 0;
+        boolean swapXY = false;
+        switch (pretransformFlags) {
+            case VK_SURFACE_TRANSFORM_ROTATE_90_BIT_KHR -> {
+                rotateDegrees = 90;
+                swapXY = true;
             }
-            return VK_PRESENT_MODE_FIFO_KHR; //If None of the request modes exist/are supported by Driver
+            case VK_SURFACE_TRANSFORM_ROTATE_270_BIT_KHR -> {
+                rotateDegrees = 270;
+                swapXY = true;
+            }
+            case VK_SURFACE_TRANSFORM_ROTATE_180_BIT_KHR -> rotateDegrees = 180;
+        }
+        pretransformMatrix = pretransformMatrix.identity();
+        if(rotateDegrees != 0) {
+            pretransformMatrix.rotate((float) Math.toRadians(rotateDegrees), 0, 0, 1);
+            pretransformMatrix.invert();
+        }
+        if(swapXY) {
+            int originalWidth = extent.width();
+            int originalHeight = extent.height();
+            extent.width(originalHeight);
+            extent.height(originalWidth);
         }
     }
 

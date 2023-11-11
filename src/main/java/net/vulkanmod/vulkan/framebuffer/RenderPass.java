@@ -9,7 +9,6 @@ import org.lwjgl.vulkan.*;
 
 import java.nio.LongBuffer;
 
-import static org.lwjgl.vulkan.KHRSwapchain.VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 import static org.lwjgl.vulkan.VK10.*;
 
 public class RenderPass {
@@ -61,13 +60,13 @@ public class RenderPass {
                 VkAttachmentDescription colorAttachment = attachments.get(i);
                 colorAttachment.format(colorAttachmentInfo.format);
                 colorAttachment.samples(VK_SAMPLE_COUNT_1_BIT);
-                colorAttachment.loadOp(colorAttachmentInfo.loadOp);
-                colorAttachment.storeOp(colorAttachmentInfo.storeOp);
+                colorAttachment.loadOp(VK_ATTACHMENT_LOAD_OP_CLEAR);
+                colorAttachment.storeOp(VK_ATTACHMENT_STORE_OP_STORE);
                 colorAttachment.stencilLoadOp(VK_ATTACHMENT_LOAD_OP_DONT_CARE);
                 colorAttachment.stencilStoreOp(VK_ATTACHMENT_STORE_OP_DONT_CARE);
 
                 colorAttachment.initialLayout(colorAttachmentInfo.initialLayout);
-                colorAttachment.finalLayout(VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+                colorAttachment.finalLayout(KHRSwapchain.VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 
                 VkAttachmentReference colorAttachmentRef = attachmentRefs.get(0);
                 colorAttachmentRef.attachment(0);
@@ -85,8 +84,8 @@ public class RenderPass {
                 VkAttachmentDescription depthAttachment = attachments.get(i);
                 depthAttachment.format(depthAttachmentInfo.format);
                 depthAttachment.samples(VK_SAMPLE_COUNT_1_BIT);
-                depthAttachment.loadOp(depthAttachmentInfo.loadOp);
-                depthAttachment.storeOp(depthAttachmentInfo.storeOp);
+                depthAttachment.loadOp(VK_ATTACHMENT_LOAD_OP_CLEAR);
+                depthAttachment.storeOp(VK_ATTACHMENT_STORE_OP_DONT_CARE);
                 depthAttachment.stencilLoadOp(VK_ATTACHMENT_LOAD_OP_DONT_CARE);
                 depthAttachment.stencilStoreOp(VK_ATTACHMENT_STORE_OP_DONT_CARE);
                 depthAttachment.initialLayout(depthAttachmentInfo.initialLayout);
@@ -112,7 +111,7 @@ public class RenderPass {
 
             id = pRenderPass.get(0);
 
-            finalColorLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+            finalColorLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
             finalDepthLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
         }
@@ -120,16 +119,16 @@ public class RenderPass {
 
     public void beginRenderPass(VkCommandBuffer commandBuffer, long framebufferId, MemoryStack stack) {
 
-        if(colorAttachmentInfo != null && colorAttachmentInfo.initialLayout != VK_IMAGE_LAYOUT_UNDEFINED
-                && colorAttachmentInfo.initialLayout != framebuffer.getColorAttachment().getCurrentLayout())
-//            throw new RuntimeException("current layout does not match expected initial layout");
-            framebuffer.getColorAttachment().transitionImageLayout(stack, commandBuffer, colorAttachmentInfo.initialLayout);
-        if(depthAttachmentInfo != null && depthAttachmentInfo.initialLayout != VK_IMAGE_LAYOUT_UNDEFINED
-                && depthAttachmentInfo.initialLayout != framebuffer.getDepthAttachment().getCurrentLayout())
-//            throw new RuntimeException("current layout does not match expected initial layout");
-            framebuffer.getDepthAttachment().transitionImageLayout(stack, commandBuffer, depthAttachmentInfo.initialLayout);
+//        if(colorAttachmentInfo != null && colorAttachmentInfo.initialLayout != VK_IMAGE_LAYOUT_UNDEFINED
+//                && colorAttachmentInfo.initialLayout != framebuffer.getColorAttachment().getCurrentLayout())
+////            throw new RuntimeException("current layout does not match expected initial layout");
+//            framebuffer.getColorAttachment().transitionImageLayout(stack, commandBuffer, colorAttachmentInfo.initialLayout);
+//        if(depthAttachmentInfo != null && depthAttachmentInfo.initialLayout != VK_IMAGE_LAYOUT_UNDEFINED
+//                && depthAttachmentInfo.initialLayout != framebuffer.getDepthAttachment().getCurrentLayout())
+////            throw new RuntimeException("current layout does not match expected initial layout");
+//            framebuffer.getDepthAttachment().transitionImageLayout(stack, commandBuffer, depthAttachmentInfo.initialLayout);
 
-        VkRenderPassBeginInfo renderPassInfo = VkRenderPassBeginInfo.calloc(stack);
+        VkRenderPassBeginInfo renderPassInfo = VkRenderPassBeginInfo.callocStack(stack);
         renderPassInfo.sType$Default();
         renderPassInfo.renderPass(this.id);
         renderPassInfo.framebuffer(framebufferId);
@@ -139,7 +138,8 @@ public class RenderPass {
         renderArea.extent().set(framebuffer.getWidth(), framebuffer.getHeight());
         renderPassInfo.renderArea(renderArea);
 
-        VkClearValue.Buffer clearValues = VkClearValue.malloc(2, stack);
+        VkClearValue.Buffer clearValues;
+        clearValues = VkClearValue.malloc(2, stack);
         clearValues.get(0).color().float32(VRenderSystem.clearColor);
         clearValues.get(1).depthStencil().set(1.0f, 0);
 
@@ -163,7 +163,7 @@ public class RenderPass {
     }
 
     public void beginDynamicRendering(VkCommandBuffer commandBuffer, MemoryStack stack) {
-        VkRect2D renderArea = VkRect2D.malloc(stack);
+        VkRect2D renderArea = VkRect2D.calloc(stack);
         renderArea.offset().set(0, 0);
         renderArea.extent().set(framebuffer.getWidth(), framebuffer.getHeight());
 
@@ -275,9 +275,9 @@ public class RenderPass {
             this.framebuffer = framebuffer;
 
             if(framebuffer.hasColorAttachment)
-                colorAttachmentInfo = new AttachmentInfo(AttachmentInfo.Type.COLOR, framebuffer.format).setOps(VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE);
+                colorAttachmentInfo = new AttachmentInfo(AttachmentInfo.Type.COLOR, framebuffer.format);
             if(framebuffer.hasDepthAttachment)
-                depthAttachmentInfo = new AttachmentInfo(AttachmentInfo.Type.DEPTH, framebuffer.depthFormat).setOps(VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_DONT_CARE);
+                depthAttachmentInfo = new AttachmentInfo(AttachmentInfo.Type.DEPTH, framebuffer.depthFormat);
         }
 
         public RenderPass build() {

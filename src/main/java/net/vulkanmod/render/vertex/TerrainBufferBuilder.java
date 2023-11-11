@@ -6,8 +6,8 @@ import com.mojang.blaze3d.vertex.*;
 import com.mojang.logging.LogUtils;
 import net.minecraft.util.Mth;
 import net.minecraft.world.level.block.state.BlockState;
-import net.vulkanmod.render.util.SortUtil;
 import net.vulkanmod.render.chunk.TerrainShaderManager;
+import net.vulkanmod.render.util.SortUtil;
 import org.apache.commons.lang3.mutable.MutableInt;
 import org.jetbrains.annotations.Nullable;
 import org.joml.Vector3f;
@@ -468,7 +468,20 @@ public class TerrainBufferBuilder implements VertexConsumer {
 			int j = this.pointer + this.drawState.vertexBufferEnd();
 			return TerrainBufferBuilder.this.bufferSlice(i, j);
 		}
+		public long vertexBufferPtr() {
+			return TerrainBufferBuilder.this.bufferPtr +  this.pointer + this.drawState.vertexBufferStart();
+		}
 
+		public long indexBufferPtr() {
+			return TerrainBufferBuilder.this.bufferPtr +  this.pointer + this.drawState.indexBufferStart();
+		}
+		public int size() {
+			return (this.pointer + this.drawState.vertexBufferEnd()) - (this.pointer + this.drawState.vertexBufferStart());
+		}
+
+		public int size2() {
+			return (this.pointer + this.drawState.indexBufferEnd()) - (this.pointer + this.drawState.indexBufferStart());
+		}
 		public ByteBuffer indexBuffer() {
 			int i = this.pointer + this.drawState.indexBufferStart();
 			int j = this.pointer + this.drawState.indexBufferEnd();

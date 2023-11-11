@@ -13,12 +13,14 @@ import java.util.Collections;
 public class Config {
 
     public int frameQueueSize = 2;
+    public int minImageCount = 3;
     public VideoResolution resolution = VideoResolution.getFirstAvailable();
     public boolean windowedFullscreen = false;
     public boolean guiOptimizations = false;
     public int advCulling = 2;
     public boolean indirectDraw = false;
-    public boolean uniqueOpaqueLayer = true;
+    public boolean vertexFetchFix = false;
+    public boolean renderSky = true;
     public boolean entityCulling = true;
 
     private static Path path;

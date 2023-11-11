@@ -1,17 +1,17 @@
 package net.vulkanmod.vulkan.queue;
 
+import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import net.vulkanmod.vulkan.Device;
 import net.vulkanmod.vulkan.Synchronization;
 import net.vulkanmod.vulkan.Vulkan;
 import net.vulkanmod.vulkan.util.VUtil;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
-import org.lwjgl.vulkan.VkBufferCopy;
-import org.lwjgl.vulkan.VkQueue;
+import org.lwjgl.vulkan.*;
 
 import static org.lwjgl.system.MemoryStack.stackPush;
+import static org.lwjgl.vulkan.KHRSurface.vkGetPhysicalDeviceSurfaceSupportKHR;
 import static org.lwjgl.vulkan.VK10.*;
-
 
 public enum Queue {
     GraphicsQueue(QueueFamilyIndices.graphicsFamily, true),
@@ -58,7 +58,6 @@ public enum Queue {
         vkQueueWaitIdle(queue);
     }
 
-
     public long copyBufferCmd(long srcBuffer, long srcOffset, long dstBuffer, long dstOffset, long size) {
 
         try(MemoryStack stack = stackPush()) {
@@ -97,7 +96,7 @@ public enum Queue {
         }
     }
 
-    public void uploadBufferCmd(CommandPool.CommandBuffer commandBuffer, long srcBuffer, long srcOffset, long dstBuffer, long dstOffset, long size) {
+    public void uploadBufferCmd(VkCommandBuffer commandBuffer, long srcBuffer, long srcOffset, long dstBuffer, long dstOffset, long size) {
 
         try(MemoryStack stack = stackPush()) {
 
@@ -106,7 +105,7 @@ public enum Queue {
             copyRegion.srcOffset(srcOffset);
             copyRegion.dstOffset(dstOffset);
 
-            vkCmdCopyBuffer(commandBuffer.getHandle(), srcBuffer, dstBuffer, copyRegion);
+            vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, copyRegion);
         }
     }
 
@@ -135,6 +134,14 @@ public enum Queue {
         } else {
             return submitCommands(commandBuffer);
         }
+    }
+
+    public void uploadSuperSet(CommandPool.CommandBuffer commandBuffer, VkBufferCopy.Buffer copyRegions, long src, long bufferPointerSuperSet) {
+        vkCmdCopyBuffer(commandBuffer.getHandle(), src, bufferPointerSuperSet, copyRegions);
+    }
+
+    public synchronized long submitCommands2(ObjectArrayList<CommandPool.CommandBuffer> handle, long fence1) {
+        return this.commandPool.submitCommands2(queue, handle, fence1);
     }
 
 }

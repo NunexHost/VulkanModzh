@@ -5,12 +5,12 @@ import net.vulkanmod.render.chunk.DrawBuffers;
 import java.util.Arrays;
 import java.util.Iterator;
 
-public class AreaSetQueue {
+public class DrawBufferQueue {
     private final int size;
     int[] set;
     ResettableQueue<DrawBuffers> queue;
 
-    public AreaSetQueue(int size) {
+    public DrawBufferQueue(int size) {
         this.size = size;
 
         int t = (int) Math.ceil((float)size / Integer.SIZE);

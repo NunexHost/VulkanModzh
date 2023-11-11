@@ -11,10 +11,14 @@ public class StaticQueue<T> implements Iterable<T> {
     int limit = 0;
     final int capacity;
 
-    @SuppressWarnings("unchecked")
-    public StaticQueue(int capacity) {
+    public StaticQueue() {
+        this(1024);
+    }
 
-        this.capacity = capacity;
+    @SuppressWarnings("unchecked")
+    public StaticQueue(int initialCapacity) {
+        this.capacity = initialCapacity;
+
         this.queue = (T[])(new Object[capacity]);
     }
 

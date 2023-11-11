@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static net.vulkanmod.vulkan.Vulkan.getSwapChain;
+import static net.vulkanmod.vulkan.Vulkan.getSwapChainImages;
 import static net.vulkanmod.vulkan.queue.Queue.TransferQueue;
 import static net.vulkanmod.vulkan.util.VUtil.align;
 import static org.lwjgl.vulkan.VK10.VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
@@ -21,7 +22,7 @@ public class UniformBuffers {
     private List<UniformBuffer> uniformBuffers;
 
     private final static int minOffset = (int) Device.deviceProperties.limits().minUniformBufferOffsetAlignment();
-    private final int framesSize = getSwapChain().getFramesNum();
+    private final int imagesSize = getSwapChain().getFramesNum();
 
     CommandPool.CommandBuffer commandBuffer;
 
@@ -36,9 +37,9 @@ public class UniformBuffers {
     private void createUniformBuffers(int size, MemoryType memoryType) {
         this.bufferSize = size;
 
-        uniformBuffers = new ArrayList<>(framesSize);
+        uniformBuffers = new ArrayList<>(imagesSize);
 
-        for(int i = 0; i < framesSize; ++i) {
+        for(int i = 0; i < imagesSize; ++i) {
             uniformBuffers.add(new UniformBuffer(this.bufferSize, memoryType));
         }
     }
@@ -130,7 +131,7 @@ public class UniformBuffers {
                 StagingBuffer stagingBuffer = Vulkan.getStagingBuffer();
                 stagingBuffer.copyBuffer(size, buffer);
 
-                TransferQueue.uploadBufferCmd(commandBuffer, stagingBuffer.id, stagingBuffer.offset, this.id, offset, size);
+                TransferQueue.uploadBufferCmd(commandBuffer.getHandle(), stagingBuffer.id, stagingBuffer.offset, this.id, offset, size);
             }
         }
 

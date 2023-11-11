@@ -1,32 +1,25 @@
 package net.vulkanmod.render.chunk.build;
 
-import net.minecraft.client.renderer.RenderType;
 import net.vulkanmod.render.vertex.TerrainBufferBuilder;
+import net.vulkanmod.render.vertex.TerrainRenderType;
 
+import java.util.EnumMap;
 import java.util.Map;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 public class ThreadBuilderPack {
-    private static Function<RenderType, TerrainBufferBuilder> terrainBuilderConstructor;
+    private final Map<TerrainRenderType, TerrainBufferBuilder> builders = new EnumMap<>(TerrainRenderType.class);
 
-    public static void defaultTerrainBuilderConstructor() {
-        terrainBuilderConstructor = renderType -> new TerrainBufferBuilder(renderType.bufferSize());
+    {
+
+        for (TerrainRenderType renderType : TerrainRenderType.values()) {
+            if (builders.put(renderType, new TerrainBufferBuilder(renderType.maxSize)) != null) {
+                throw new IllegalStateException("Duplicate key");
+            }
+        }
+
     }
 
-    public static void setTerrainBuilderConstructor(Function<RenderType, TerrainBufferBuilder> constructor) {
-        terrainBuilderConstructor = constructor;
-    }
-
-    private final Map<RenderType, TerrainBufferBuilder> builders;
-
-    public ThreadBuilderPack() {
-        builders = RenderType.chunkBufferLayers().stream().collect(Collectors.toMap(
-                (renderType) -> renderType,
-                renderType -> terrainBuilderConstructor.apply(renderType)));
-    }
-
-    public TerrainBufferBuilder builder(RenderType renderType) {
+    public TerrainBufferBuilder builder(TerrainRenderType renderType) {
         return this.builders.get(renderType);
     }
 
