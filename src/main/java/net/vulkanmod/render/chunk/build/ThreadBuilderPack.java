@@ -9,6 +9,7 @@ import java.util.Map;
 public class ThreadBuilderPack {
     private final Map<TerrainRenderType, TerrainBufferBuilder> builders = new EnumMap<>(TerrainRenderType.class);
 
+
     {
 
         for (TerrainRenderType renderType : TerrainRenderType.values()) {

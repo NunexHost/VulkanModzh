@@ -2,6 +2,7 @@ package net.vulkanmod.render.chunk;
 
 import com.mojang.blaze3d.vertex.VertexFormat;
 import net.vulkanmod.Initializer;
+import net.vulkanmod.render.chunk.build.ThreadBuilderPack;
 import net.vulkanmod.render.vertex.CustomVertexFormat;
 import net.vulkanmod.render.vertex.TerrainRenderType;
 import net.vulkanmod.vulkan.shader.GraphicsPipeline;

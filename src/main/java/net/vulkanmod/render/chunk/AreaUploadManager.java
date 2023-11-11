@@ -1,15 +1,27 @@
 package net.vulkanmod.render.chunk;
 
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import net.vulkanmod.render.VirtualBuffer;
 import net.vulkanmod.vulkan.*;
-import net.vulkanmod.vulkan.memory.Buffer;
 import net.vulkanmod.vulkan.memory.StagingBuffer;
 import net.vulkanmod.vulkan.queue.CommandPool;
 import org.apache.commons.lang3.Validate;
 
 import static net.vulkanmod.render.chunk.DrawBuffers.tVirtualBufferIdx;
 import static net.vulkanmod.vulkan.queue.Queue.TransferQueue;
+
+import net.vulkanmod.vulkan.queue.Queue;
+import net.vulkanmod.vulkan.queue.TransferQueue;
+import org.lwjgl.system.MemoryStack;
+import org.lwjgl.vulkan.VkCommandBuffer;
+import org.lwjgl.vulkan.VkMemoryBarrier;
+
+import java.nio.ByteBuffer;
+
+import static org.lwjgl.vulkan.VK10.*;
+import static org.lwjgl.vulkan.VK10.VK_PIPELINE_STAGE_TRANSFER_BIT;
+
 
 public class AreaUploadManager {
     public static final int FRAME_NUM = 2;
@@ -19,24 +31,21 @@ public class AreaUploadManager {
         INSTANCE = new AreaUploadManager();
     }
 
+    Queue queue = Device.getTransferQueue();
+
     ObjectArrayList<AreaBuffer.Segment>[] recordedUploads;
-    ObjectArrayList<DrawBuffers.ParametersUpdate>[] updatedParameters;
-    ObjectArrayList<Runnable>[] frameOps;
     CommandPool.CommandBuffer[] commandBuffers;
+
+    LongOpenHashSet dstBuffers = new LongOpenHashSet();
 
     int currentFrame;
 
-    public void createLists() {
-
+    public void init() {
         this.commandBuffers = new CommandPool.CommandBuffer[FRAME_NUM];
         this.recordedUploads = new ObjectArrayList[FRAME_NUM];
-        this.updatedParameters = new ObjectArrayList[FRAME_NUM];
-        this.frameOps = new ObjectArrayList[FRAME_NUM];
 
         for (int i = 0; i < FRAME_NUM; i++) {
             this.recordedUploads[i] = new ObjectArrayList<>();
-            this.updatedParameters[i] = new ObjectArrayList<>();
-            this.frameOps[i] = new ObjectArrayList<>();
         }
     }
 
@@ -47,7 +56,7 @@ public class AreaUploadManager {
         tVirtualBufferIdx.uploadSubset(srcStaging, this.commandBuffers[currentFrame]);
 
 
-        Device.getTransferQueue().submitCommands(this.commandBuffers[currentFrame]);
+        queue.submitCommands(this.commandBuffers[currentFrame]);
     }
 
     public void uploadAsync2(VirtualBuffer virtualBuffer, long bufferId, long dstBufferSize, long dstOffset, long bufferSize, long src) {
@@ -69,53 +78,41 @@ public class AreaUploadManager {
     public void uploadAsync(AreaBuffer.Segment uploadSegment, long bufferId, long dstOffset, long bufferSize, long src) {
 
         if(commandBuffers[currentFrame] == null)
-            this.commandBuffers[currentFrame] = Device.getTransferQueue().beginCommands();
-//            this.commandBuffers[currentFrame] = Device.getGraphicsQueue().beginCommands();
+            this.commandBuffers[currentFrame] = queue.beginCommands();
+
+        VkCommandBuffer commandBuffer = commandBuffers[currentFrame].getHandle();
 
         StagingBuffer stagingBuffer = Vulkan.getStagingBuffer(this.currentFrame);
         stagingBuffer.copyBuffer2((int) bufferSize, src);
 
-        TransferQueue.uploadBufferCmd(this.commandBuffers[currentFrame], stagingBuffer.getId(), stagingBuffer.getOffset(), bufferId, dstOffset, bufferSize);
+        if(!dstBuffers.add(bufferId)) {
+            try (MemoryStack stack = MemoryStack.stackPush()) {
+                VkMemoryBarrier.Buffer barrier = VkMemoryBarrier.calloc(1, stack);
+                barrier.sType$Default();
+                barrier.srcAccessMask(VK_ACCESS_TRANSFER_WRITE_BIT);
+                barrier.dstAccessMask(VK_ACCESS_TRANSFER_WRITE_BIT);
 
-        this.recordedUploads[this.currentFrame].add(uploadSegment);
-    }
+                vkCmdPipelineBarrier(commandBuffer,
+                        VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                        0,
+                        barrier,
+                        null,
+                        null);
+            }
 
-    public void enqueueParameterUpdate(DrawBuffers.ParametersUpdate parametersUpdate) {
-        this.updatedParameters[this.currentFrame].add(parametersUpdate);
-    }
-
-    public void enqueueFrameOp(Runnable runnable) {
-        this.frameOps[this.currentFrame].add(runnable);
-    }
-
-    public void copy(Buffer src, Buffer dst) {
-        if(dst.getBufferSize() < src.getBufferSize()) {
-            throw new IllegalArgumentException("dst buffer is smaller than src buffer.");
+            dstBuffers.clear();
         }
 
-        if(commandBuffers[currentFrame] == null)
-            this.commandBuffers[currentFrame] = Device.getTransferQueue().beginCommands();
+        TransferQueue.uploadBufferCmd(commandBuffer, stagingBuffer.getId(), stagingBuffer.getOffset(), bufferId, dstOffset, bufferSize);
 
-        TransferQueue.uploadBufferCmd(this.commandBuffers[currentFrame], src.getId(), 0, dst.getId(), 0, src.getBufferSize());
+        this.recordedUploads[this.currentFrame].add(uploadSegment);
     }
 
     public void updateFrame() {
         this.currentFrame = (this.currentFrame + 1) % FRAME_NUM;
         waitUploads(this.currentFrame);
-        executeFrameOps(this.currentFrame);
-    }
 
-    private void executeFrameOps(int frame) {
-        for(DrawBuffers.ParametersUpdate parametersUpdate : this.updatedParameters[frame]) {
-            parametersUpdate.setDrawParameters();
-        }
-
-        for(Runnable runnable : this.frameOps[frame]) {
-            runnable.run();
-        }
-
-        this.updatedParameters[frame].clear();
-        this.frameOps[frame].clear();
+        this.dstBuffers.clear();
     }
 
     void waitUploads() {
@@ -129,10 +126,6 @@ public class AreaUploadManager {
 
         for(AreaBuffer.Segment uploadSegment : this.recordedUploads[frame]) {
             uploadSegment.setReady();
-        }
-
-        for(DrawBuffers.ParametersUpdate parametersUpdate : this.updatedParameters[frame]) {
-            parametersUpdate.setDrawParameters();
         }
 
         this.commandBuffers[frame].reset();
