@@ -27,7 +27,7 @@ public class VulkanImage {
     private static final int vkImageAspectDepthBit = defDepthFormat == VK_FORMAT_D32_SFLOAT ? VK_IMAGE_ASPECT_DEPTH_BIT : VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
     public static int DefaultFormat = VK_FORMAT_R8G8B8A8_UNORM;
 
-    private static VkDevice device = Vulkan.getDevice();
+    private static final VkDevice device = Vulkan.getDevice();
     private static final int defAccessReadBit = QueueFamilyIndices.hasDedicatedTransferQueue ? VK_ACCESS_TRANSFER_READ_BIT : VK_ACCESS_SHADER_READ_BIT;
     private static final int defDstStage = QueueFamilyIndices.hasDedicatedTransferQueue ? VK_PIPELINE_STAGE_TRANSFER_BIT : VK_PIPELINE_STAGE_VERTEX_SHADER_BIT;
 
@@ -314,10 +314,10 @@ public class VulkanImage {
             int destinationStage;
 
             barrier.srcAccessMask(VK_ACCESS_TRANSFER_WRITE_BIT);
-            barrier.dstAccessMask(VK_ACCESS_SHADER_READ_BIT);
+            barrier.dstAccessMask(defAccessReadBit);
 
             sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-            destinationStage = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT;
+            destinationStage = defDstStage;
 
             vkCmdPipelineBarrier(commandBuffer,
                     sourceStage, destinationStage,
@@ -471,7 +471,7 @@ public class VulkanImage {
                 sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
             }
             case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL -> {
-                srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+                srcAccessMask = defAccessReadBit;
                 sourceStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
             }
             case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL -> {
