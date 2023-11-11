@@ -17,6 +17,7 @@ import org.lwjgl.vulkan.VkCommandBuffer;
 
 import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
+import java.util.Iterator;
 
 import static com.sun.jna.Native.POINTER_SIZE;
 import static org.lwjgl.system.Checks.check;
@@ -241,13 +242,14 @@ public class DrawBuffers {
     }
 
     private void drawIndexedBatchedBindless(boolean isTranslucent, long address, long functionAddress) {
-        for (DrawParameters drawParameters : (isTranslucent ? Tqueue : Squeue)) {
+        for (Iterator<DrawParameters> iter = (isTranslucent ? Tqueue : Squeue).iterator(isTranslucent); iter.hasNext();) {
+            final DrawParameters drawParameters = iter.next();
             callPV(address, drawParameters.indexCount, 1, drawParameters.firstIndex, drawParameters.vertexOffset, drawParameters.baseInstance, functionAddress);
         }
     }
     private void drawIndexedBatched(boolean isTranslucent, long address, long npointer1, long npointer, long functionAddress1, long functionAddress) {
-        for (DrawParameters drawParameters : (isTranslucent ? Tqueue : Squeue)) {
-
+        for (Iterator<DrawParameters> iter = (isTranslucent ? Tqueue : Squeue).iterator(isTranslucent); iter.hasNext();) {
+            final DrawParameters drawParameters = iter.next();
             VUtil.UNSAFE.putLong(npointer1, drawParameters.vertexOffset*20L);
 
             callPPPV(address, 0, 1, npointer, npointer1, functionAddress1);
