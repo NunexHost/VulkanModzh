@@ -22,7 +22,7 @@ public class AreaUploadManager {
         INSTANCE = new AreaUploadManager();
     }
 
-    ObjectArrayList<AreaBuffer.Segment>[] recordedUploads;
+//    ObjectArrayList<virtualSegmentBuffer>[] recordedUploads;
     CommandPool.CommandBuffer[] commandBuffers;
 
     LongOpenHashSet dstBuffers = new LongOpenHashSet();
@@ -31,21 +31,17 @@ public class AreaUploadManager {
 
     public void init() {
         this.commandBuffers = new CommandPool.CommandBuffer[FRAME_NUM];
-        this.recordedUploads = new ObjectArrayList[FRAME_NUM];
 
-        for (int i = 0; i < FRAME_NUM; i++) {
-            this.recordedUploads[i] = new ObjectArrayList<>();
-        }
     }
 
     public synchronized void submitUploads() {
-        if(this.recordedUploads[this.currentFrame].isEmpty())
+        if(this.commandBuffers[currentFrame]==null)
             return;
 
         TransferQueue.submitCommands(this.commandBuffers[currentFrame]);
     }
 
-    public void uploadAsync(AreaBuffer.Segment uploadSegment, long bufferId, long dstOffset, long bufferSize, ByteBuffer src) {
+    public void uploadAsync(long bufferId, long dstOffset, long bufferSize, ByteBuffer src) {
 
         if(commandBuffers[currentFrame] == null)
             this.commandBuffers[currentFrame] = TransferQueue.beginCommands();
@@ -75,7 +71,7 @@ public class AreaUploadManager {
 
         TransferQueue.uploadBufferCmd(commandBuffer, stagingBuffer.getId(), stagingBuffer.getOffset(), bufferId, dstOffset, bufferSize);
 
-        this.recordedUploads[this.currentFrame].add(uploadSegment);
+//        this.recordedUploads[this.currentFrame].add(uploadSegment);
     }
 
     public void updateFrame() {
@@ -91,13 +87,11 @@ public class AreaUploadManager {
             return;
         Synchronization.waitFence(commandBuffers[frame].getFence());
 
-        for(AreaBuffer.Segment uploadSegment : this.recordedUploads[frame]) {
-            uploadSegment.setReady();
-        }
+
 
         this.commandBuffers[frame].reset();
         this.commandBuffers[frame] = null;
-        this.recordedUploads[frame].clear();
+
     }
 
     public synchronized void waitAllUploads() {

@@ -47,8 +47,6 @@ public class VRenderSystem {
 
     public static MappedBuffer screenSize = new MappedBuffer(2 * 4);
 
-    public static float alphaCutout = 0.0f;
-
     private static final float[] depthBias = new float[2];
 
     public static void initRenderer()

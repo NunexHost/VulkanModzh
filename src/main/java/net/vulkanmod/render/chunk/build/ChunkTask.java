@@ -28,13 +28,13 @@ import net.vulkanmod.render.vertex.TerrainBufferBuilder;
 import net.vulkanmod.render.vertex.TerrainRenderType;
 
 import javax.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.EnumMap;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import static net.vulkanmod.render.vertex.TerrainRenderType.*;
+import static net.vulkanmod.render.vertex.TerrainRenderType.TRANSLUCENT;
 
 public abstract class ChunkTask {
     private static TaskDispatcher taskDispatcher;
@@ -57,7 +57,7 @@ public abstract class ChunkTask {
 
     public abstract String name();
 
-    public abstract CompletableFuture<Result> doTask(ThreadBuilderPack builderPack);
+    public abstract void doTask(ThreadBuilderPack builderPack);
 
     public void cancel() {
         this.cancelled.set(true);
@@ -90,56 +90,54 @@ public abstract class ChunkTask {
             return "rend_chk_rebuild";
         }
 
-        public CompletableFuture<Result> doTask(ThreadBuilderPack chunkBufferBuilderPack) {
+        public void doTask(ThreadBuilderPack chunkBufferBuilderPack) {
             //debug
             this.submitted = true;
             long startTime = System.nanoTime();
 
-            if (this.cancelled.get()) {
-                return CompletableFuture.completedFuture(Result.CANCELLED);
-            } else if (!this.renderSection.hasXYNeighbours()) {
+            if (!this.cancelled.get())
+                if (!this.renderSection.hasXYNeighbours()) {
                 this.region = null;
                 this.renderSection.setDirty(false);
                 this.cancelled.set(true);
-                return CompletableFuture.completedFuture(Result.CANCELLED);
-            } else if (this.cancelled.get()) {
-                return CompletableFuture.completedFuture(Result.CANCELLED);
+
             } else {
-                Vec3 vec3 = WorldRenderer.getCameraPos();
-                float f = (float)vec3.x;
-                float g = (float)vec3.y;
-                float h = (float)vec3.z;
-                CompileResults compileResults = this.compile(f, g, h, chunkBufferBuilderPack);
+                if (!this.cancelled.get()) {
+                    Vec3 vec3 = WorldRenderer.getCameraPos();
+                    float f = (float) vec3.x;
+                    float g = (float) vec3.y;
+                    float h = (float) vec3.z;
+                    CompileResults compileResults = this.compile(f, g, h, chunkBufferBuilderPack);
 
-                this.renderSection.updateGlobalBlockEntities(compileResults.globalBlockEntities);
+                    this.renderSection.updateGlobalBlockEntities(compileResults.globalBlockEntities);
 
-                if (this.cancelled.get()) {
-                    compileResults.renderedLayers.values().forEach(UploadBuffer::release);
-                    return CompletableFuture.completedFuture(Result.CANCELLED);
-                } else {
-                    CompiledSection compiledChunk = new CompiledSection();
-                    compiledChunk.visibilitySet = compileResults.visibilitySet;
-                    compiledChunk.renderableBlockEntities.addAll(compileResults.blockEntities);
-                    compiledChunk.transparencyState = compileResults.transparencyState;
+                    if (this.cancelled.get()) {
+                        compileResults.renderedLayers.values().forEach(UploadBuffer::release);
 
-                    if(!compileResults.renderedLayers.isEmpty())
-                        compiledChunk.isCompletelyEmpty = false;
+                    } else {
+                        CompiledSection compiledChunk = new CompiledSection();
+                        compiledChunk.visibilitySet = compileResults.visibilitySet;
+                        compiledChunk.renderableBlockEntities.addAll(compileResults.blockEntities);
+                        compiledChunk.transparencyState = compileResults.transparencyState;
 
-                    taskDispatcher.scheduleSectionUpdate(renderSection, compileResults.renderedLayers);
-                    compiledChunk.renderTypes.addAll(compileResults.renderedLayers.keySet());
+                        if (!compileResults.renderedLayers.isEmpty())
+                            compiledChunk.isCompletelyEmpty = false;
 
-                    this.renderSection.setCompiledSection(compiledChunk);
-                    this.renderSection.setVisibility(((VisibilitySetExtended)compiledChunk.visibilitySet).getVisibility());
-                    this.renderSection.setCompletelyEmpty(compiledChunk.isCompletelyEmpty);
+                        taskDispatcher.scheduleSectionUpdate(renderSection, compileResults.renderedLayers);
+                        compiledChunk.renderTypes.addAll(compileResults.renderedLayers.keySet());
 
-                    this.buildTime = (System.nanoTime() - startTime) * 0.000001f;
+                        this.renderSection.setCompiledSection(compiledChunk);
+                        this.renderSection.setVisibility(((VisibilitySetExtended) compiledChunk.visibilitySet).getVisibility());
+                        this.renderSection.setCompletelyEmpty(compiledChunk.isCompletelyEmpty);
 
-                    if(bench) {
-                        totalBuildTime.addAndGet((int)buildTime);
-                        buildCount.addAndGet(1);
+                        this.buildTime = (System.nanoTime() - startTime) * 0.000001f;
+
+                        if (bench) {
+                            totalBuildTime.addAndGet((int) buildTime);
+                            buildCount.addAndGet(1);
+                        }
+
                     }
-
-                    return CompletableFuture.completedFuture(Result.SUCCESSFUL);
                 }
             }
         }
@@ -153,7 +151,7 @@ public abstract class ChunkTask {
             PoseStack poseStack = new PoseStack();
             if (renderChunkRegion != null) {
                 ModelBlockRenderer.enableCaching();
-                Set<RenderType> set = new ReferenceArraySet<>(RenderType.chunkBufferLayers().size());
+                final EnumSet<TerrainRenderType> set = EnumSet.noneOf(TerrainRenderType.class);
                 RandomSource randomSource = RandomSource.create();
                 BlockRenderDispatcher blockRenderDispatcher = Minecraft.getInstance().getBlockRenderer();
 
@@ -172,10 +170,10 @@ public abstract class ChunkTask {
 
 //                    BlockState blockState2 = renderChunkRegion.getBlockState(blockPos);
                     FluidState fluidState = blockState.getFluidState();
-                    RenderType renderType;
+                    TerrainRenderType renderType;
                     TerrainBufferBuilder bufferBuilder;
                     if (!fluidState.isEmpty()) {
-                        renderType = ItemBlockRenderTypes.getRenderLayer(fluidState);
+                        renderType = get(ItemBlockRenderTypes.getRenderLayer(fluidState).name);
 
                         //Force compact RenderType
                         renderType = compactRenderTypes(renderType);
@@ -191,7 +189,7 @@ public abstract class ChunkTask {
                     }
 
                     if (blockState.getRenderShape() != RenderShape.INVISIBLE) {
-                        renderType = ItemBlockRenderTypes.getChunkRenderType(blockState);
+                        renderType =  get(ItemBlockRenderTypes.getChunkRenderType(blockState).name);
 
                         //Force compact RenderType
                         renderType = compactRenderTypes(renderType);
@@ -210,19 +208,18 @@ public abstract class ChunkTask {
                     }
                 }
 
-                if (set.contains(RenderType.translucent())) {
-                    TerrainBufferBuilder bufferBuilder2 = chunkBufferBuilderPack.builder(RenderType.translucent());
+                if (set.contains(TRANSLUCENT)) {
+                    TerrainBufferBuilder bufferBuilder2 = chunkBufferBuilderPack.builder(TRANSLUCENT);
                     if (!bufferBuilder2.isCurrentBatchEmpty()) {
                         bufferBuilder2.setQuadSortOrigin(camX - (float)startBlockPos.getX(), camY - (float)startBlockPos.getY(), camZ - (float)startBlockPos.getZ());
                         compileResults.transparencyState = bufferBuilder2.getSortState();
                     }
                 }
 
-                for(RenderType renderType2 : set) {
+                for(TerrainRenderType renderType2 : set) {
                     TerrainBufferBuilder.RenderedBuffer renderedBuffer = chunkBufferBuilderPack.builder(renderType2).endOrDiscardIfEmpty();
                     if (renderedBuffer != null) {
-                        UploadBuffer uploadBuffer = new UploadBuffer(renderedBuffer);
-                        compileResults.renderedLayers.put(TerrainRenderType.get(renderType2.name), uploadBuffer);
+                        compileResults.renderedLayers.put(renderType2, new UploadBuffer(renderedBuffer));
                     }
 
                     if(renderedBuffer != null)
@@ -236,24 +233,16 @@ public abstract class ChunkTask {
             return compileResults;
         }
 
-        private RenderType compactRenderTypes(RenderType renderType) {
+        private TerrainRenderType compactRenderTypes(TerrainRenderType renderType) {
 
             if(Initializer.CONFIG.uniqueOpaqueLayer) {
-                if (renderType != RenderType.translucent()) {
-                    if(renderType != RenderType.tripwire()) {
-                        renderType = RenderType.cutoutMipped();
-                    }
-                    else
-                        renderType = RenderType.translucent();
+                if (renderType != TRANSLUCENT) {
+                    return renderType != TRIPWIRE ? CUTOUT_MIPPED : TRANSLUCENT;
                 }
             }
             else {
-                if (renderType != RenderType.translucent() && renderType != RenderType.cutoutMipped()) {
-                    if(renderType != RenderType.tripwire()) {
-                        renderType = RenderType.cutout();
-                    }
-                    else
-                        renderType = RenderType.translucent();
+                if (renderType != TRANSLUCENT && renderType != CUTOUT_MIPPED) {
+                    return renderType != TRIPWIRE ? CUTOUT : TRANSLUCENT;
                 }
             }
 
@@ -296,38 +285,33 @@ public abstract class ChunkTask {
             return "rend_chk_sort";
         }
 
-        public CompletableFuture<Result> doTask(ThreadBuilderPack builderPack) {
-            if (this.cancelled.get()) {
-                return CompletableFuture.completedFuture(Result.CANCELLED);
-            } else if (!renderSection.hasXYNeighbours()) {
+        public void doTask(ThreadBuilderPack builderPack) {
+            if (!this.cancelled.get())
+                if (!renderSection.hasXYNeighbours()) {
                 this.cancelled.set(true);
-                return CompletableFuture.completedFuture(Result.CANCELLED);
-            } else {
+
+            }
+            else {
                 Vec3 vec3 = WorldRenderer.getCameraPos();
-                float f = (float)vec3.x;
-                float f1 = (float)vec3.y;
-                float f2 = (float)vec3.z;
+                float f = (float) vec3.x;
+                float f1 = (float) vec3.y;
+                float f2 = (float) vec3.z;
                 TerrainBufferBuilder.SortState transparencyState = this.compiledSection.transparencyState;
-                if (transparencyState != null && this.compiledSection.renderTypes.contains(TerrainRenderType.TRANSLUCENT)) {
-                    TerrainBufferBuilder bufferbuilder = builderPack.builder(RenderType.translucent());
+                if (transparencyState != null && this.compiledSection.renderTypes.contains(TRANSLUCENT)) {
+                    TerrainBufferBuilder bufferbuilder = builderPack.builder(TRANSLUCENT);
                     bufferbuilder.begin(VertexFormat.Mode.QUADS, TerrainShaderManager.TERRAIN_VERTEX_FORMAT);
                     bufferbuilder.restoreSortState(transparencyState);
-//                    bufferbuilder.setQuadSortOrigin(f - (float) this.renderSection.origin.getX(), f1 - (float) renderSection.origin.getY(), f2 - (float) renderSection.origin.getZ());
+                    //                    bufferbuilder.setQuadSortOrigin(f - (float) this.renderSection.origin.getX(), f1 - (float) renderSection.origin.getY(), f2 - (float) renderSection.origin.getZ());
                     bufferbuilder.setQuadSortOrigin(f - (float) this.renderSection.xOffset(), f1 - (float) renderSection.yOffset(), f2 - (float) renderSection.zOffset());
                     this.compiledSection.transparencyState = bufferbuilder.getSortState();
                     TerrainBufferBuilder.RenderedBuffer renderedBuffer = bufferbuilder.end();
-                    if (this.cancelled.get()) {
-                        return CompletableFuture.completedFuture(Result.CANCELLED);
-                    } else {
+                    if (!this.cancelled.get()) {
 
-                        UploadBuffer uploadBuffer = new UploadBuffer(renderedBuffer);
-                        taskDispatcher.scheduleUploadChunkLayer(renderSection, TerrainRenderType.TRANSLUCENT, uploadBuffer);
+                        taskDispatcher.scheduleUploadChunkLayer(renderSection, TRANSLUCENT, new UploadBuffer(renderedBuffer));
                         renderedBuffer.release();
-                        return CompletableFuture.completedFuture(Result.SUCCESSFUL);
+                        CompletableFuture.completedFuture(Result.SUCCESSFUL);
 
                     }
-                } else {
-                    return CompletableFuture.completedFuture(Result.CANCELLED);
                 }
             }
         }

@@ -43,6 +43,7 @@ import net.vulkanmod.vulkan.Vulkan;
 import net.vulkanmod.vulkan.memory.Buffer;
 import net.vulkanmod.vulkan.memory.IndirectBuffer;
 import net.vulkanmod.vulkan.memory.MemoryTypes;
+import net.vulkanmod.vulkan.shader.GraphicsPipeline;
 import org.joml.FrustumIntersection;
 import org.joml.Matrix4f;
 import org.lwjgl.vulkan.VkCommandBuffer;
@@ -116,7 +117,7 @@ public class WorldRenderer {
         this.indirectBuffers = new IndirectBuffer[Vulkan.getSwapChain().getFramesNum()];
 
         for(int i = 0; i < this.indirectBuffers.length; ++i) {
-            this.indirectBuffers[i] = new IndirectBuffer(1000000, MemoryTypes.HOST_MEM);
+            this.indirectBuffers[i] = new IndirectBuffer(1048576, MemoryTypes.HOST_MEM);
 //            this.indirectBuffers[i] = new IndirectBuffer(1000000, MemoryTypes.GPU_MEM);
         }
 
@@ -549,7 +550,7 @@ public class WorldRenderer {
         //debug
 //        Profiler p = Profiler.getProfiler("chunks");
         Profiler2 p = Profiler2.getMainProfiler();
-        TerrainRenderType terrainRenderType = TerrainRenderType.get(renderType.name);
+        final TerrainRenderType terrainRenderType = TerrainRenderType.get(renderType.name);
 
 //        p.pushMilestone("layer " + layerName);
         if(terrainRenderType.equals(SOLID))
@@ -564,41 +565,38 @@ public class WorldRenderer {
         RenderSystem.assertOnRenderThread();
         renderType.setupRenderState();
 
-        this.sortTranslucentSections(camX, camY, camZ);
+        final boolean isTranslucent = terrainRenderType == TRANSLUCENT;
+        final boolean indirectDraw = Initializer.CONFIG.indirectDraw;
+        final int currentFrame = Renderer.getCurrentFrame();
+
+        if(isTranslucent) this.sortTranslucentSections(camX, camY, camZ);
 
         this.minecraft.getProfiler().push("filterempty");
-        this.minecraft.getProfiler().popPush(() -> {
-            return "render_" + renderType;
-        });
-        boolean flag = terrainRenderType == TRANSLUCENT;
-        boolean indirectDraw = Initializer.CONFIG.indirectDraw;
+        this.minecraft.getProfiler().popPush(() -> "render_" + terrainRenderType);
 
         VRenderSystem.applyMVP(poseStack.last().pose(), projection);
 
-        Renderer renderer = Renderer.getInstance();
-        int currentFrame = Renderer.getCurrentFrame();
-        VkCommandBuffer commandBuffer = Renderer.getCommandBuffer();
-        renderer.bindGraphicsPipeline(terrainDirectShader);
-        Renderer.getDrawer().bindAutoIndexBuffer(commandBuffer, 7);
+
 
         p.push("draw batches");
 
         if((Initializer.CONFIG.uniqueOpaqueLayer ? COMPACT_RENDER_TYPES : SEMI_COMPACT_RENDER_TYPES).contains(terrainRenderType)) {
 
-            terrainRenderType.setCutoutUniform();
-            terrainDirectShader.bindDescriptorSets(commandBuffer, currentFrame);
+            VkCommandBuffer commandBuffer = Renderer.getCommandBuffer();
+            GraphicsPipeline terrainDirectShader1 = TerrainShaderManager.getTerrainShader(terrainRenderType);
+            Renderer.getInstance().bindGraphicsPipeline(terrainDirectShader1);
+            if(!isTranslucent) Renderer.getDrawer().bindAutoIndexBuffer(commandBuffer, 7);
+            terrainDirectShader1.bindDescriptorSets(commandBuffer, currentFrame);
 
-            for(Iterator<DrawBuffers> iterator = this.chunkAreaQueue.iterator(flag); iterator.hasNext(); ) {
-
-                if(indirectDraw) {
-                    iterator.next().buildDrawBatchesIndirect(indirectBuffers[currentFrame], terrainRenderType, camX, camY, camZ);
-                } else {
-                    iterator.next().buildDrawBatchesDirect(terrainRenderType, camX, camY, camZ);
-                }
+            final long layout = terrainDirectShader1.getLayout();
+            for(Iterator<DrawBuffers> iterator = this.chunkAreaQueue.iterator(isTranslucent); iterator.hasNext(); ) {
+                final DrawBuffers drawBuffers = iterator.next();
+                if(indirectDraw) drawBuffers.buildDrawBatchesIndirect(indirectBuffers[currentFrame], terrainRenderType, camX, camY, camZ, layout);
+                else drawBuffers.buildDrawBatchesDirect(terrainRenderType, camX, camY, camZ, layout);
             }
         }
 
-        if(terrainRenderType.equals(CUTOUT) || terrainRenderType.equals(TRIPWIRE)) {
+        if(indirectDraw && terrainRenderType.equals(CUTOUT) || terrainRenderType.equals(TRIPWIRE)) {
             indirectBuffers[currentFrame].submitUploads();
 //            uniformBuffers.submitUploads();
         }
@@ -622,28 +620,6 @@ public class WorldRenderer {
 
     }
 
-    private static String getLayerName(RenderType renderType) {
-        RenderType solid = RenderType.solid();
-        RenderType cutout = RenderType.cutout();
-        RenderType cutoutMipped = RenderType.cutoutMipped();
-        RenderType translucent = RenderType.translucent();
-        RenderType tripwire = RenderType.tripwire();
-
-        String layerName;
-        if (solid.equals(renderType)) {
-            layerName = "solid";
-        } else if (cutout.equals(renderType)) {
-            layerName = "cutout";
-        } else if (cutoutMipped.equals(renderType)) {
-            layerName = "cutoutMipped";
-        } else if (tripwire.equals(renderType)) {
-            layerName = "tripwire";
-        } else if (translucent.equals(renderType)) {
-            layerName = "translucent";
-        } else layerName = "unk";
-        return layerName;
-    }
-
     private void sortTranslucentSections(double camX, double camY, double camZ) {
         this.minecraft.getProfiler().push("translucent_sort");
         double d0 = camX - this.xTransparentOld;
@@ -662,14 +638,10 @@ public class WorldRenderer {
 //                    }
 //                }
 
-            Iterator<RenderSection> iterator = this.chunkQueue.iterator(false);
 
-            while(iterator.hasNext() && j < 15) {
-                RenderSection section = iterator.next();
 
-                section.resortTransparency(TRANSLUCENT, this.taskDispatcher);
-
-                ++j;
+            for (Iterator<RenderSection> iterator = this.chunkQueue.iterator(false); iterator.hasNext() && j < 15; ++j) {
+                iterator.next().resortTransparency(this.taskDispatcher);
             }
         }
 

@@ -25,10 +25,6 @@ public enum TerrainRenderType {
         this.maxSize=renderType.bufferSize();
     }
 
-    public void setCutoutUniform() {
-        VRenderSystem.alphaCutout = this.alphaCutout;
-    }
-
     public static TerrainRenderType get(String renderType) {
         return switch (renderType)
         {

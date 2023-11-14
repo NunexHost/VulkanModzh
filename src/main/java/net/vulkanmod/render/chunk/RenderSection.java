@@ -19,6 +19,8 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import static net.vulkanmod.render.vertex.TerrainRenderType.TRANSLUCENT;
+
 public class RenderSection {
     static final Map<RenderSection, Set<BlockEntity>> globalBlockEntitiesMap = new Reference2ReferenceOpenHashMap<>();
 
@@ -59,7 +61,7 @@ public class RenderSection {
 
         this.drawParametersArray = new DrawBuffers.DrawParameters[TerrainRenderType.VALUES.length];
         for(int i = 0; i < this.drawParametersArray.length; ++i) {
-            this.drawParametersArray[i] = new DrawBuffers.DrawParameters(TerrainRenderType.VALUES[i] == TerrainRenderType.TRANSLUCENT);
+            this.drawParametersArray[i] = new DrawBuffers.DrawParameters(index);
         }
     }
 
@@ -105,19 +107,16 @@ public class RenderSection {
         return this.sourceDirs != 0;
     }
 
-    public boolean resortTransparency(TerrainRenderType renderType, TaskDispatcher taskDispatcher) {
+    public void resortTransparency(TaskDispatcher taskDispatcher) {
         CompiledSection compiledSection1 = this.getCompiledSection();
 
         if (this.compileStatus.sortTask != null) {
             this.compileStatus.sortTask.cancel();
         }
 
-        if (!compiledSection1.renderTypes.contains(renderType)) {
-            return false;
-        } else {
+        if (compiledSection1.renderTypes.contains(TRANSLUCENT)) {
             this.compileStatus.sortTask = new ChunkTask.SortTransparencyTask(this);
             taskDispatcher.schedule(this.compileStatus.sortTask);
-            return true;
         }
     }
 
