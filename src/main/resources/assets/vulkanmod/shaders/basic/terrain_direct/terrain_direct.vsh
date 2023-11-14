@@ -19,21 +19,21 @@ layout(location = 1) out vec2 texCoord0;
 //Compressed Vertex
 layout(location = 0) in ivec3 Position;
 layout(location = 1) in vec4 Color;
-layout(location = 2) in uvec2 UV0;
+layout(location = 2) in uint UV0;
 layout(location = 3) in ivec2 UV2;
 //layout(location = 4) in vec3 Normal;
 
-const float UV_INV = 1.0 / 65536.0;
-const float POSITION_INV = 1.0 / 1900.0;
-
+const vec3 POSITION_INV = vec3(1.0 / 1900.0);
+const vec4 UNPACK_FACTOR = vec4(127.*16.);
 void main() {
-    const ivec3 a = bitfieldExtract(ivec3(gl_InstanceIndex)>> ivec3(0, 18, 9), 0, 9);
-    const vec3 pos = fma(Position, vec3(POSITION_INV), ChunkOffset);
-    gl_Position = MVP * vec4(pos + a, 1.0);
+    vec4 xyz = fma(unpackSnorm4x8(gl_InstanceIndex),UNPACK_FACTOR,vec4(fma(Position,POSITION_INV,ChunkOffset), 1));
+    gl_Position = MVP * xyz;
+
 
     vertexColor = Color * sample_lightmap(Sampler2, UV2);
 
-    texCoord0 = UV0 * UV_INV;
+    texCoord0 = unpackUnorm2x16(UV0);
+
 //    normal = MVP * vec4(Normal, 0.0);
 }
 

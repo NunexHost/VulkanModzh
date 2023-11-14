@@ -62,9 +62,10 @@ public class DrawBuffers {
     public DrawParameters upload(int xOffset, int yOffset, int zOffset, UploadBuffer buffer, DrawParameters drawParameters, TerrainRenderType renderType) {
         int vertexOffset = drawParameters.vertexOffset;
         int firstIndex = 0;
-        final int xOffset1 = (xOffset & 127);
-        final int zOffset1 = (zOffset & 127);
-        drawParameters.baseInstance= yOffset<<18|zOffset1<<9|xOffset1;
+        final int xOffset1 = (xOffset & 127)>>4;
+        final int zOffset1 = (zOffset & 127)>>4;
+        final int yOffset1 = yOffset >>4;
+        drawParameters.baseInstance= zOffset1<<16|yOffset1<<8|xOffset1;
 
         if(!buffer.indexOnly()) {
 
