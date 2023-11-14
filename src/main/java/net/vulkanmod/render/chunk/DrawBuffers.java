@@ -6,9 +6,11 @@ import net.vulkanmod.render.vertex.TerrainRenderType;
 import net.vulkanmod.vulkan.Renderer;
 import net.vulkanmod.vulkan.memory.IndirectBuffer;
 import net.vulkanmod.vulkan.shader.Pipeline;
+import net.vulkanmod.vulkan.util.VUtil;
 import org.joml.Vector3i;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.system.MemoryUtil;
+import org.lwjgl.system.Pointer;
 import org.lwjgl.vulkan.VkCommandBuffer;
 
 import java.nio.ByteBuffer;
@@ -79,9 +81,10 @@ public class DrawBuffers {
     }
 
     private static int encodeSectionOffset(int xOffset, int yOffset, int zOffset) {
-        final int xOffset1 = (xOffset & 127);
-        final int zOffset1 = (zOffset & 127);
-        return yOffset <<18|zOffset1<<9|xOffset1;
+        final int xOffset1 = (xOffset & 127)>>4;
+        final int zOffset1 = (zOffset & 127)>>4;
+        final int yOffset1 = yOffset >> 4;
+        return zOffset1 << 16 | yOffset1 << 8 | xOffset1;
     }
 
     public void buildDrawBatchesIndirect(IndirectBuffer indirectBuffer, TerrainRenderType terrainRenderType, double camX, double camY, double camZ) {
