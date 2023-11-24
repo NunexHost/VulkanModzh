@@ -111,7 +111,7 @@ public class DrawBuffers {
 //
 //            }
 
-
+            if(drawParameters.indexCount==0) continue;
             //TODO
             if(!drawParameters.ready && drawParameters.vertexBufferSegment.getOffset() != -1) {
                 if(!drawParameters.vertexBufferSegment.isReady())
