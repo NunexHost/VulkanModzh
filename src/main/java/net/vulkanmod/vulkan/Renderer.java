@@ -407,7 +407,9 @@ public class Renderer {
         //Semaphores need to be recreated in order to make them unsignaled
         destroySyncObjects();
 
-        int newFramesNum = getSwapChain().getImagesNum();;
+
+        int newFramesNum = getSwapChain().getFramesNum();
+
         imagesNum = getSwapChain().getImagesNum();
 
         if(framesNum != newFramesNum) {
