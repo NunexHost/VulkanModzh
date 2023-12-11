@@ -1,13 +1,11 @@
 package net.vulkanmod.render.chunk.build;
 
 import com.google.common.collect.Queues;
-import com.mojang.logging.LogUtils;
 import net.vulkanmod.render.chunk.AreaUploadManager;
 import net.vulkanmod.render.chunk.ChunkArea;
 import net.vulkanmod.render.chunk.DrawBuffers;
 import net.vulkanmod.render.chunk.RenderSection;
 import net.vulkanmod.render.vertex.TerrainRenderType;
-import org.slf4j.Logger;
 
 import javax.annotation.Nullable;
 import java.util.EnumMap;
@@ -124,11 +122,9 @@ public class TaskDispatcher {
 
     public boolean uploadAllPendingUploads() {
 
-        Runnable runnable;
-        boolean flag = false;
-        while((runnable = this.toUpload.poll()) != null) {
-            flag = true;
-            runnable.run();
+        boolean flag = this.toUpload.isEmpty();
+        while(!this.toUpload.isEmpty()) {
+            this.toUpload.poll().run();
         }
 
         AreaUploadManager.INSTANCE.submitUploads();
@@ -146,13 +142,14 @@ public class TaskDispatcher {
         ChunkArea renderArea = section.getChunkArea();
         DrawBuffers drawBuffers = renderArea.getDrawBuffers();
 
-        for(TerrainRenderType renderType : TerrainRenderType.VALUES) {
+        for(TerrainRenderType renderType : uploadBuffers.keySet()) {
             UploadBuffer uploadBuffer = uploadBuffers.get(renderType);
 
             if(uploadBuffer != null) {
-                drawBuffers.upload(section.xOffset(), section.yOffset(), section.zOffset(), uploadBuffer, section.getDrawParameters(renderType));
+                section.updateSection(renderType, drawBuffers.upload(section.xOffset(), section.yOffset(), section.zOffset(), uploadBuffer, section.getDrawParameters(renderType), renderType));
             } else {
-                section.getDrawParameters(renderType).reset(renderArea);
+                section.remSection(renderType, renderArea.drawBuffers());
+//                section.getCompiledSection().renderTypes.remove(renderType);
             }
         }
     }
@@ -167,7 +164,7 @@ public class TaskDispatcher {
         ChunkArea renderArea = section.getChunkArea();
         DrawBuffers drawBuffers = renderArea.getDrawBuffers();
 
-        drawBuffers.upload(section.xOffset(), section.yOffset(), section.zOffset(), uploadBuffer, section.getDrawParameters(renderType));
+        section.updateSection(renderType, drawBuffers.upload(section.xOffset(), section.yOffset(), section.zOffset(), uploadBuffer, section.getDrawParameters(renderType), renderType));
     }
 
     public int getIdleThreadsCount() {

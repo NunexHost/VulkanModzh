@@ -16,6 +16,7 @@ import java.nio.ByteBuffer;
 import java.util.EnumMap;
 import java.util.Set;
 
+import static net.vulkanmod.render.vertex.TerrainRenderType.TRANSLUCENT;
 import static org.lwjgl.vulkan.VK10.*;
 
 public class DrawBuffers {
@@ -48,7 +49,8 @@ public class DrawBuffers {
         this.allocated = true;
     }
 
-    public DrawParameters upload(int xOffset, int yOffset, int zOffset, UploadBuffer buffer, DrawParameters drawParameters) {
+    public DrawParameters upload(int xOffset, int yOffset, int zOffset, UploadBuffer buffer, DrawParameters drawParameters, TerrainRenderType renderType) {
+        drawParameters= drawParameters == null ? new DrawParameters(renderType == TRANSLUCENT) : drawParameters;
         int vertexOffset = drawParameters.vertexOffset;
         int firstIndex = 0;
         drawParameters.baseInstance = encodeSectionOffset(xOffset, yOffset, zOffset);
@@ -267,7 +269,7 @@ public class DrawBuffers {
         return allocated;
     }
 
-    public void addMeshlet(TerrainRenderType r, DrawParameters drawParameters) {
+    public void addDrawCommands(TerrainRenderType r, DrawParameters drawParameters) {
         this.sectionQueues.get(r).add(drawParameters);
     }
 
@@ -288,36 +290,21 @@ public class DrawBuffers {
         int firstIndex;
         int vertexOffset;
         int baseInstance;
-        AreaBuffer.Segment vertexBufferSegment = new AreaBuffer.Segment();
-        AreaBuffer.Segment indexBufferSegment;
+        final AreaBuffer.Segment vertexBufferSegment = new AreaBuffer.Segment();
+        final AreaBuffer.Segment indexBufferSegment;
         boolean ready = false;
 
         DrawParameters(boolean translucent) {
-            if(translucent) {
-                indexBufferSegment = new AreaBuffer.Segment();
-            }
+            indexBufferSegment = translucent ? new AreaBuffer.Segment() : null;
         }
 
-        public void reset(ChunkArea chunkArea) {
-            this.indexCount = 0;
-            this.firstIndex = 0;
-            this.vertexOffset = 0;
+        public void free(DrawBuffers drawBuffers) {
 
-            int segmentOffset = this.vertexBufferSegment.getOffset();
-            if(chunkArea != null && chunkArea.drawBuffers().isAllocated() && segmentOffset != -1) {
+            if(drawBuffers.isAllocated() && this.vertexBufferSegment.getOffset() != -1) {
 //                this.chunkArea.drawBuffers.vertexBuffer.setSegmentFree(segmentOffset);
-                chunkArea.drawBuffers().vertexBuffer.setSegmentFree(this.vertexBufferSegment);
+                drawBuffers.vertexBuffer.setSegmentFree(this.vertexBufferSegment);
             }
-        }
-    }
-
-    public record ParametersUpdate(DrawParameters drawParameters, int indexCount, int firstIndex, int vertexOffset) {
-
-        public void setDrawParameters() {
-            this.drawParameters.indexCount = indexCount;
-            this.drawParameters.firstIndex = firstIndex;
-            this.drawParameters.vertexOffset = vertexOffset;
-            this.drawParameters.ready = true;
+//            if(indexBufferSegment!=null) drawBuffers.indexBuffer.setSegmentFree(this.indexBufferSegment);
         }
     }
 

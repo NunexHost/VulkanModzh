@@ -14,10 +14,7 @@ import net.vulkanmod.render.chunk.build.TaskDispatcher;
 import net.vulkanmod.render.vertex.TerrainRenderType;
 
 import javax.annotation.Nullable;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 public class RenderSection {
     static final Map<RenderSection, Set<BlockEntity>> globalBlockEntitiesMap = new Reference2ReferenceOpenHashMap<>();
@@ -42,7 +39,7 @@ public class RenderSection {
 //            Arrays.stream(TerrainRenderType.VALUES)
 //                    .map(terrainRenderType -> new DrawBuffers.DrawParameters(terrainRenderType == TerrainRenderType.TRANSLUCENT))
 //                    .toArray(DrawBuffers.DrawParameters[]::new);
-    private final DrawBuffers.DrawParameters[] drawParametersArray;
+    final EnumMap<TerrainRenderType, DrawBuffers.DrawParameters> drawParametersArray;
 
     //Graph-info
     public Direction mainDir;
@@ -57,10 +54,8 @@ public class RenderSection {
         this.yOffset = y;
         this.zOffset = z;
 
-        this.drawParametersArray = new DrawBuffers.DrawParameters[TerrainRenderType.VALUES.length];
-        for(int i = 0; i < this.drawParametersArray.length; ++i) {
-            this.drawParametersArray[i] = new DrawBuffers.DrawParameters(TerrainRenderType.VALUES[i] == TerrainRenderType.TRANSLUCENT);
-        }
+        this.drawParametersArray = new EnumMap<>(TerrainRenderType.class);
+//        TerrainRenderType.getActiveLayers().forEach(r -> drawParametersArray.put(r, new DrawBuffers.DrawParameters(r==TRANSLUCENT)));
     }
 
     public void setOrigin(int x, int y, int z) {
@@ -105,19 +100,16 @@ public class RenderSection {
         return this.sourceDirs != 0;
     }
 
-    public boolean resortTransparency(TerrainRenderType renderType, TaskDispatcher taskDispatcher) {
+    public void resortTransparency(TerrainRenderType renderType, TaskDispatcher taskDispatcher) {
         CompiledSection compiledSection1 = this.getCompiledSection();
 
         if (this.compileStatus.sortTask != null) {
             this.compileStatus.sortTask.cancel();
         }
 
-        if (!compiledSection1.renderTypes.contains(renderType)) {
-            return false;
-        } else {
+        if (compiledSection1.renderTypes.contains(renderType)) {
             this.compileStatus.sortTask = new ChunkTask.SortTransparencyTask(this);
             taskDispatcher.schedule(this.compileStatus.sortTask);
-            return true;
         }
     }
 
@@ -181,7 +173,7 @@ public class RenderSection {
     }
 
     public DrawBuffers.DrawParameters getDrawParameters(TerrainRenderType renderType) {
-        return drawParametersArray[renderType.ordinal()];
+        return this.drawParametersArray.get(renderType);
     }
 
     public void setNeighbour(int index, @Nullable RenderSection chunk) {
@@ -266,10 +258,10 @@ public class RenderSection {
     }
 
     private void resetDrawParameters() {
-        for(DrawBuffers.DrawParameters drawParameters : this.drawParametersArray) {
-            drawParameters.reset(this.chunkArea);
-
+        for (DrawBuffers.DrawParameters drawParameters : this.drawParametersArray.values()) {
+            drawParameters.free(this.chunkArea.drawBuffers());
         }
+        this.drawParametersArray.clear();
     }
 
     public void setDirty(boolean playerChanged) {
@@ -298,6 +290,14 @@ public class RenderSection {
 
     public short getLastFrame() {
         return this.lastFrame;
+    }
+
+    public void updateSection(TerrainRenderType renderType, DrawBuffers.DrawParameters upload) {
+        this.drawParametersArray.putIfAbsent(renderType, upload);
+    }
+
+    public void remSection(TerrainRenderType renderType, DrawBuffers drawBuffers) {
+        this.drawParametersArray.remove(renderType).free(drawBuffers);
     }
 
     static class CompileStatus {

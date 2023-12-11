@@ -1,6 +1,5 @@
 package net.vulkanmod.render.chunk;
 
-import com.google.common.collect.Sets;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.SheetedDecalTextureGenerator;
@@ -38,6 +37,7 @@ import net.vulkanmod.render.profiling.Profiler2;
 import net.vulkanmod.render.vertex.TerrainRenderType;
 import net.vulkanmod.vulkan.Renderer;
 import net.vulkanmod.vulkan.VRenderSystem;
+import net.vulkanmod.vulkan.Vulkan;
 import net.vulkanmod.vulkan.memory.Buffer;
 import net.vulkanmod.vulkan.memory.IndirectBuffer;
 import net.vulkanmod.vulkan.memory.MemoryTypes;
@@ -73,7 +73,6 @@ public class WorldRenderer {
     private SectionGrid sectionGrid;
 
     private boolean needsUpdate;
-    private final Set<BlockEntity> globalBlockEntities = Sets.newHashSet();
 
     private final TaskDispatcher taskDispatcher;
     private final ResettableQueue<RenderSection> chunkQueue = new ResettableQueue<>();
@@ -303,7 +302,7 @@ public class WorldRenderer {
     private void updateRenderChunks() {
         int maxDirectionsChanges = Initializer.CONFIG.advCulling;
 
-        int buildLimit = taskDispatcher.getIdleThreadsCount() * (Minecraft.getInstance().options.enableVsync().get() ? 6 : 3);
+        int buildLimit = taskDispatcher.getIdleThreadsCount() * (Vulkan.getSwapChain().isVsync() ? 6 : 3);
 
         if(buildLimit == 0)
             this.needsUpdate = true;
@@ -314,14 +313,7 @@ public class WorldRenderer {
             if(!renderSection.isCompletelyEmpty()) {
                 final DrawBuffers drawBuffers = renderSection.getChunkArea().getDrawBuffers();
                 //                drawBuffers.addRenderTypes(renderTypes);
-                for(var t : renderSection.getCompiledSection().renderTypes)
-                {
-                    DrawBuffers.DrawParameters drawParameters = renderSection.getDrawParameters(t);
-                    if(drawParameters.indexCount>0)
-                    {
-                        drawBuffers.addMeshlet(t, drawParameters);
-                    }
-                }
+                renderSection.drawParametersArray.forEach(drawBuffers::addDrawCommands);
                 this.drawBufferSetQueue.add(drawBuffers);
                 this.nonEmptyChunks++;
             }
@@ -364,14 +356,7 @@ public class WorldRenderer {
             if(!renderSection.isCompletelyEmpty()) {
                 final DrawBuffers drawBuffers = renderSection.getChunkArea().getDrawBuffers();
                 //                drawBuffers.addRenderTypes(renderTypes);
-                for(var t : renderSection.getCompiledSection().renderTypes)
-                {
-                    DrawBuffers.DrawParameters drawParameters = renderSection.getDrawParameters(t);
-                    if(drawParameters.indexCount>0)
-                    {
-                        drawBuffers.addMeshlet(t, drawParameters);
-                    }
-                }
+                renderSection.drawParametersArray.forEach(drawBuffers::addDrawCommands);
                 this.drawBufferSetQueue.add(drawBuffers);
                 this.nonEmptyChunks++;
             }
@@ -505,9 +490,6 @@ public class WorldRenderer {
             }
 
             this.taskDispatcher.clearBatchQueue();
-            synchronized(this.globalBlockEntities) {
-                this.globalBlockEntities.clear();
-            }
 
             this.sectionGrid = new SectionGrid(this.level, this.minecraft.options.getEffectiveRenderDistance());
             this.drawBufferSetQueue = new DrawBufferSetQueue(this.sectionGrid.chunkAreaManager.size);

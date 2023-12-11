@@ -5,10 +5,12 @@ import it.unimi.dsi.fastutil.objects.ObjectArraySet;
 import net.minecraft.client.renderer.chunk.VisibilitySet;
 import net.minecraft.core.Direction;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.vulkanmod.render.chunk.DrawBuffers;
 import net.vulkanmod.render.vertex.TerrainBufferBuilder;
 import net.vulkanmod.render.vertex.TerrainRenderType;
 
 import javax.annotation.Nullable;
+import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
@@ -20,6 +22,8 @@ public class CompiledSection {
         }
     };
     public final Set<TerrainRenderType> renderTypes = EnumSet.noneOf(TerrainRenderType.class);
+
+//    public final EnumMap<TerrainRenderType, DrawBuffers.DrawParameters> renderTypes2 = new EnumMap<>(TerrainRenderType.class);
     boolean isCompletelyEmpty = true;
     final List<BlockEntity> renderableBlockEntities = Lists.newArrayList();
     VisibilitySet visibilitySet = new VisibilitySet();

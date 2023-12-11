@@ -1,7 +1,6 @@
 package net.vulkanmod.render.chunk;
 
 import net.minecraft.core.BlockPos;
-import net.vulkanmod.render.chunk.util.StaticQueue;
 import net.vulkanmod.render.vertex.TerrainRenderType;
 import org.joml.FrustumIntersection;
 import org.joml.Vector3i;
@@ -115,7 +114,7 @@ public record ChunkArea(int index, byte[] inFrustum, Vector3i position, DrawBuff
 //    }
 
     public void addSection(RenderSection section, TerrainRenderType renderType) {
-        this.drawBuffers.addMeshlet(renderType, section.getDrawParameters(renderType));
+        this.drawBuffers.addDrawCommands(renderType, section.getDrawParameters(renderType));
     }
 
     public void resetQueue() {
