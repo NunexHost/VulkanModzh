@@ -100,16 +100,19 @@ public class RenderSection {
         return this.sourceDirs != 0;
     }
 
-    public void resortTransparency(TerrainRenderType renderType, TaskDispatcher taskDispatcher) {
+    public boolean resortTransparency(TerrainRenderType renderType, TaskDispatcher taskDispatcher) {
         CompiledSection compiledSection1 = this.getCompiledSection();
 
         if (this.compileStatus.sortTask != null) {
             this.compileStatus.sortTask.cancel();
         }
 
-        if (compiledSection1.renderTypes.contains(renderType)) {
+        if (!compiledSection1.renderTypes.contains(renderType)) {
+            return false;
+        } else {
             this.compileStatus.sortTask = new ChunkTask.SortTransparencyTask(this);
             taskDispatcher.schedule(this.compileStatus.sortTask);
+            return true;
         }
     }
 
@@ -258,10 +261,10 @@ public class RenderSection {
     }
 
     private void resetDrawParameters() {
-        for (DrawBuffers.DrawParameters drawParameters : this.drawParametersArray.values()) {
-            drawParameters.free(this.chunkArea.drawBuffers());
+        for(TerrainRenderType r : this.getCompiledSection().renderTypes) {
+            getDrawParameters(r).free(this.chunkArea.drawBuffers(), r);
+
         }
-        this.drawParametersArray.clear();
     }
 
     public void setDirty(boolean playerChanged) {
@@ -297,7 +300,7 @@ public class RenderSection {
     }
 
     public void remSection(TerrainRenderType renderType, DrawBuffers drawBuffers) {
-        this.drawParametersArray.remove(renderType).free(drawBuffers);
+        this.drawParametersArray.remove(renderType).free(drawBuffers, renderType);
     }
 
     static class CompileStatus {
