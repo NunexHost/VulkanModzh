@@ -237,9 +237,9 @@ public class Options {
                         () -> !Minecraft.useFancyGraphics() && config.fastLeavesFix).setTooltip(Component.nullToEmpty("""
                         (EXPERIMENTAL)
                         Only takes effect when enabled with Fast Graphics
-                        Uses a Alternate technique to fix Fast Leaves on Fast Graphics
-                        Recommended to use with Indirect Draw + "Per RenderType AreaBuffers"
-                        Is very experimental and may cause performance problems""")),
+                        Uses an Alternate technique to fix Fast Leaves on Fast Graphics
+                        Recommended to use with "Per RenderType AreaBuffers"
+                        Extremely experimental: May Decrease performance""")),
                 new CyclingOption<>("Device selector",
                         IntStream.range(-1, DeviceManager.suitableDevices.size()).boxed().toArray(Integer[]::new),
                         value -> Component.nullToEmpty(value == -1 ? "Auto" : DeviceManager.suitableDevices.get(value).deviceName),
