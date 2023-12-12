@@ -145,6 +145,12 @@ public enum Queue {
         vkCmdFillBuffer(this.getCommandBuffer().getHandle(), id, 0, bufferSize, qNaN);
     }
 
+    public void trimCmdPool()
+    {
+        if(commandPool==null) return;
+        VK11.vkTrimCommandPool(Vulkan.getDevice(), this.commandPool.id, 0);
+    }
+
     public void addWriteBarrier(CommandPool.CommandBuffer commandBuffer, MemoryStack stack) {
 
         VkMemoryBarrier.Buffer memBarrier = VkMemoryBarrier.calloc(1, stack)

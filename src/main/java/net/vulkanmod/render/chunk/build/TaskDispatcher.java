@@ -127,7 +127,7 @@ public class TaskDispatcher {
             this.toUpload.poll().run();
         }
 
-        AreaUploadManager.INSTANCE.submitUploads();
+        AreaUploadManager.INSTANCE.submitUploads(false);
 
         return flag;
     }

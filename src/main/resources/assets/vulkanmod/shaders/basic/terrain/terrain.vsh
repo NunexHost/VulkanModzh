@@ -32,7 +32,7 @@ void main() {
 
 
 
-    vertexDistance = length((ModelViewMat * xyz).xyz);
+
     vertexColor = Color * sample_lightmap(Sampler2, UV2);
     texCoord0 = UV0 * UV_INV;
 //    normal = MVP * vec4(Normal, 0.0);
