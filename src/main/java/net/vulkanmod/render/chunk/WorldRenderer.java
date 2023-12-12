@@ -57,6 +57,7 @@ public class WorldRenderer {
     private static WorldRenderer INSTANCE;
 
     private final Minecraft minecraft;
+    private static final boolean drawIndirectSupported = Options.drawIndirectSupported;
 
     private ClientLevel level;
     private int lastViewDistance;
@@ -100,7 +101,7 @@ public class WorldRenderer {
         this.renderBuffers = renderBuffers;
         this.taskDispatcher = new TaskDispatcher();
         ChunkTask.setTaskDispatcher(this.taskDispatcher);
-        if(Options.drawIndirectSupported) {
+        if(drawIndirectSupported) {
             allocateIndirectBuffers();
 
             Renderer.getInstance().addOnResizeCallback(() -> {
@@ -246,7 +247,7 @@ public class WorldRenderer {
 //            p.round();
         }
 
-        if(Options.drawIndirectSupported) this.indirectBuffers[Renderer.getCurrentFrame()].reset();
+        if(drawIndirectSupported) this.indirectBuffers[Renderer.getCurrentFrame()].reset();
 //        this.uniformBuffers.reset();
 
         this.minecraft.getProfiler().pop();
@@ -568,7 +569,7 @@ public class WorldRenderer {
             return "render_" + renderType;
         });
         boolean isTranslucent = rType == TRANSLUCENT;
-        boolean indirectDraw = Initializer.CONFIG.indirectDraw;
+        boolean indirectDraw = drawIndirectSupported && Initializer.CONFIG.indirectDraw;
 
         VRenderSystem.applyMVP(poseStack.last().pose(), projection);
 
