@@ -5,21 +5,16 @@ import org.jetbrains.annotations.NotNull;
 import java.util.Iterator;
 import java.util.function.Consumer;
 
-public static class StaticQueue<T> implements Iterable<T> {
-    final int[] queue;
+public class StaticQueue<T> implements Iterable<T> {
+    final T[] queue;
     int position = 0;
     int limit = 0;
     final int capacity;
 
-    public StaticQueue() {
-        this(1024);
-    }
-
     @SuppressWarnings("unchecked")
     public StaticQueue(int initialCapacity) {
         this.capacity = initialCapacity;
-
-        this.queue = new int[initialCapacity];
+        this.queue = (T[])(new Object[initialCapacity]);
     }
 
     public boolean hasNext() {
@@ -27,7 +22,9 @@ public static class StaticQueue<T> implements Iterable<T> {
     }
 
     public T poll() {
-        return (T) this.queue[this.position++];
+        T t = this.queue[position];
+        this.position++;
+        return t;
     }
 
     public void add(T t) {
@@ -35,7 +32,8 @@ public static class StaticQueue<T> implements Iterable<T> {
             return;
 
         if(limit == capacity) throw new RuntimeException("Exceeded size: "+this.capacity);
-        this.queue[this.limit++] = (t == null ? 0 : 1); // Mantém um valor não nulo para indicar que não está vazio
+        this.queue[limit] = t;
+        this.limit++;
     }
 
     public int size() {
@@ -51,16 +49,16 @@ public static class StaticQueue<T> implements Iterable<T> {
     public Iterator<T> iterator() {
         return new Iterator<T>() {
             int pos = 0;
-            final int limit = StaticQueue.this.limit;
+            final int currentLimit = limit;
 
             @Override
             public boolean hasNext() {
-                return pos < limit;
+                return pos < currentLimit;
             }
 
             @Override
             public T next() {
-                return (T) StaticQueue.this.queue[pos++];
+                return queue[pos++];
             }
         };
     }
