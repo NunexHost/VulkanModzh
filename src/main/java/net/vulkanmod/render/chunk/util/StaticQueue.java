@@ -5,8 +5,8 @@ import org.jetbrains.annotations.NotNull;
 import java.util.Iterator;
 import java.util.function.Consumer;
 
-public class StaticQueue<T> implements Iterable<T> {
-    final T[] queue;
+public static class StaticQueue<T> implements Iterable<T> {
+    final int[] queue;
     int position = 0;
     int limit = 0;
     final int capacity;
@@ -19,7 +19,7 @@ public class StaticQueue<T> implements Iterable<T> {
     public StaticQueue(int initialCapacity) {
         this.capacity = initialCapacity;
 
-        this.queue = (T[])(new Object[capacity]);
+        this.queue = new int[initialCapacity];
     }
 
     public boolean hasNext() {
@@ -27,10 +27,7 @@ public class StaticQueue<T> implements Iterable<T> {
     }
 
     public T poll() {
-        T t = this.queue[position];
-        this.position++;
-
-        return t;
+        return (T) this.queue[this.position++];
     }
 
     public void add(T t) {
@@ -38,9 +35,7 @@ public class StaticQueue<T> implements Iterable<T> {
             return;
 
         if(limit == capacity) throw new RuntimeException("Exceeded size: "+this.capacity);
-        this.queue[limit] = t;
-
-        this.limit++;
+        this.queue[this.limit++] = (t == null ? 0 : 1); // Mantém um valor não nulo para indicar que não está vazio
     }
 
     public int size() {
@@ -52,22 +47,9 @@ public class StaticQueue<T> implements Iterable<T> {
         this.limit = 0;
     }
 
-    public Iterator<T> iterator(boolean reverseOrder) {
-        return reverseOrder ? new Iterator<>() {
-            int pos = StaticQueue.this.limit - 1;
-            final int limit = -1;
-
-            @Override
-            public boolean hasNext() {
-                return pos > limit;
-            }
-
-            @Override
-            public T next() {
-                return queue[pos--];
-            }
-        }
-                : new Iterator<>() {
+    @Override
+    public Iterator<T> iterator() {
+        return new Iterator<T>() {
             int pos = 0;
             final int limit = StaticQueue.this.limit;
 
@@ -78,15 +60,9 @@ public class StaticQueue<T> implements Iterable<T> {
 
             @Override
             public T next() {
-                return queue[pos++];
+                return (T) StaticQueue.this.queue[pos++];
             }
         };
-    }
-
-    @NotNull
-    @Override
-    public Iterator<T> iterator() {
-        return iterator(false);
     }
 
     @Override
@@ -94,6 +70,5 @@ public class StaticQueue<T> implements Iterable<T> {
         for(int i = 0; i < this.limit; ++i) {
             action.accept(this.queue[i]);
         }
-
     }
 }
